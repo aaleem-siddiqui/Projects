@@ -1,0 +1,140 @@
+# -------------------------------------
+# Creator:
+# Aaleem Siddiqui, 2023, aaleemsiddiqui@gmail.com
+# -------------------------------------
+
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates the GenericRoleName Role for a Master Payer Account
+
+# ------------------------------------- Parameters -------------------------------------
+
+Parameters:
+  #The name of the IAM role being deployed.
+  RoleName:
+    Type: String
+    Description: The name of the role GenericRoleName will use.
+    MinLength: '1'
+    MaxLength: '255'
+    Default: GenericRoleNameRole
+  #The name of the S3 bucket required in the policy.
+  BucketName:
+    Type: String
+    Description: The bucket where your cost files are kept.
+    MinLength: '1'
+    MaxLength: '255'
+    Default: GenericS3BucketName
+  #AWS account number provided by GenericRoleName.
+  TrustedAccountId:
+    Type: String
+    Description: The GenericRoleName account this role will trust.
+    MinLength: '1'
+    MaxLength: '255'
+    Default: ''
+  #AWS external ID for a resource provided by GenericRoleName.
+  ExternalId:
+    Type: String
+    Description: 'The external identifier to use, given to you by GenericRoleName'
+    MinLength: '1'
+    MaxLength: '255'
+    Default: 
+  #User to be added to the trust relationship policy. 
+  User:
+    Type: String
+    Description: User to be added to Trustee Relationship.
+    MinLength: '1'
+    MaxLength: '255'
+    Default: GenericRoleName
+
+# ------------------------------------- Resources -------------------------------------
+
+Resources:
+  #GenericRoleName IAM role
+  Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${TrustedAccountId}:user/${User}'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref ExternalId
+
+# ------------------------------------- Policies -------------------------------------
+
+      Policies:
+      #Inline policy attached to the role to verify role permissions.
+        - PolicyName: GenericRoleNameVerificationPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              Sid: VerifyRolePermissions
+              Effect: Allow
+              Action: 'iam:SimulatePrincipalPolicy'
+              Resource: !Sub 'arn:aws:iam::*:role/${RoleName}'
+      #Inline policy that provides access to S3 bucket.
+        - PolicyName: GenericRoleNameManagementAccountPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                  - 's3:GetObject'
+                Resource:
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref BucketName
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref BucketName
+                      - /*
+              - Effect: Allow
+                Action:
+                  - 'organizations:ListAccounts'
+                Resource: '*'
+      #Inline policy attached to the role to allow permissions to monitor resources.
+        - PolicyName: GenericRoleNameMonitorResourcesPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:GetMetricStatistics'
+                  - 'dynamodb:DescribeTable'
+                  - 'dynamodb:ListTables'
+                  - 'ec2:DescribeImages'
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeRegions'
+                  - 'ec2:DescribeReservedInstances'
+                  - 'ec2:DescribeReservedInstancesModifications'
+                  - 'ec2:DescribeSnapshots'
+                  - 'ec2:DescribeVolumes'
+                  - 'ec2:GetReservedInstancesExchangeQuote'
+                  - 'ecs:DescribeClusters'
+                  - 'ecs:DescribeContainerInstances'
+                  - 'ecs:ListClusters'
+                  - 'ecs:ListContainerInstances'
+                  - 'elasticache:DescribeCacheClusters'
+                  - 'elasticache:DescribeReservedCacheNodes'
+                  - 'elasticache:ListTagsForResource'
+                  - 'elasticmapreduce:DescribeCluster'
+                  - 'elasticmapreduce:ListClusters'
+                  - 'elasticmapreduce:ListInstances'
+                  - 'rds:DescribeDBClusters'
+                  - 'rds:DescribeDBInstances'
+                  - 'rds:DescribeReservedDBInstances'
+                  - 'rds:ListTagsForResource'
+                  - 'redshift:DescribeClusters'
+                  - 'redshift:DescribeReservedNodes'
+                  - 'redshift:DescribeTags'
+                  - 'savingsplans:DescribeSavingsPlans'
+                  - 'ce:GetSavingsPlansPurchaseRecommendation'
+                Resource: '*'
+      RoleName: !Ref RoleName
