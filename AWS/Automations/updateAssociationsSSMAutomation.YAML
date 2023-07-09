@@ -1,0 +1,195 @@
+# -------------------------------------
+# Creator: Aaleem Siddiqui, 2023, aaleemsiddiqui@gmail.com
+# Description: The SSM Automation updates the RestartgenericServiceNameStatusAssociation associations once every 24 hours, triggered by an EventBridge rule. Only the active region should have the restart command which required an automated to update the associations based on which region is primary vs standby. 
+# -------------------------------------
+
+description: |-
+  # **TriggerRestartgenericServiceNameStatusAssociation**  
+
+  ---
+
+  - This document is triggered by an EventBridge Rule once every 24 hours. 
+  - This document retrieves regions from secrets manager in AWS-Account to figure out the active and standby regions.  It then swaps the commands run for the corresponding association in each region. 
+  - **Active region command:** sudo su ubuntu -c "pm2 restart genericServiceName-status"
+  - **Standby region command:** ls -al
+
+   
+  **DO NOT RUN THIS AUTOMATION MANUALLY.**
+schemaVersion: '0.3'
+assumeRole: '{{ AutomationAssumeRole }}'
+parameters:
+  AutomationAssumeRole:
+    type: String
+    description: The IAM role that runs the automation (DO NOT CHANGE.)
+    allowedPattern: '^$|^arn:aws:iam::[0-9]*:role/[/\w+=,.@-]+$'
+    default: 'arn:aws:iam::AWSaccountNumber:role/AWS-SystemsManager-AutomationExecutionRole'
+mainSteps:
+  - name: retrieveRegions
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.6
+      Handler: get_active_stack
+      Script: |
+        import sys
+        import boto3
+        import json
+        import base64
+        from datetime import datetime
+        from botocore.exceptions import ClientError
+
+        def get_active_stack(event,context):
+          print("\n")
+            
+          region_east = event['REGION_EAST']
+          region_west = event['REGION_WEST']
+          dt_raw = datetime.now()
+          current_datetime = dt_raw.strftime("%Y-%m-%dT%H:%M:00Z")
+          print_datetime = dt_raw.strftime("%m/%d/%Y %H:%M:%S")
+          
+          #get the secret from us-east-1
+          session = boto3.session.Session()
+          try:
+            secret_name = "arn:aws:secretsmanager:us-east-1:AWSaccountNumber:secret:genericServiceName-LWR_ENV-STACKS"
+          
+            client = session.client(service_name='secretsmanager',region_name="us-east-1")
+          
+            get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+            
+          #if failed to get secrets from us-east-1, try replica in us-west-2
+          except:
+            print("")
+            print("FAILED TO RETRIEVE SECRETS FROM US-EAST-1! RETRIEVING SECRETS FROM US-WEST-2.")
+            secret_name = "arn:aws:secretsmanager:us-west-2:AWSaccountNumber:secret:genericServiceName-LWR_ENV-STACKS"
+          
+            client = session.client(service_name='secretsmanager',region_name="us-west-2")
+          
+            get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+            
+          #parsing secrets and saving them as vars
+          genericServiceName_secrets = json.loads(get_secret_value_response['SecretString'])
+          active_stack = genericServiceName_secrets['PRIMARY_genericServiceName_LWR_ENV_STACK'] 
+          
+          if (active_stack == 'EAST'):
+              active_region=region_east
+              standby_region=region_west
+          elif (active_stack == 'WEST'):
+              active_region=region_west
+              standby_region=region_east
+          
+          print("\n-- -- -- -- -- -- -- -- -- -- --\n")
+          print(f"THE CURRENT ACTIVE REGION IN genericServiceName-LWR_ENV IS: {active_region}.")
+          print(f"THE CURRENT STANDBY REGION IN genericServiceName-LWR_ENV IS: {standby_region}.")
+          print(f"THE CURRENT DATE AND TIME IS: {print_datetime}.")
+          print("\n-- -- -- -- -- -- -- -- -- -- --\n")
+          
+          return {'ACTIVE_REGION': active_region, 'STANDBY_REGION': standby_region}
+      InputPayload:
+        REGION_EAST: us-east-1
+        REGION_WEST: us-west-2
+    outputs:
+      - Name: ACTIVE_REGION
+        Selector: $.Payload.ACTIVE_REGION
+        Type: String
+      - Name: STANDBY_REGION
+        Selector: $.Payload.STANDBY_REGION
+        Type: String
+    description: Retrieves regions and credentials
+  - name: updateRestartgenericServiceNameStatusAssociation
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.6
+      Handler: updateRestartgenericServiceNameStatusAssociation
+      Script: |-
+        import sys
+        import boto3
+        import json
+        import base64
+        from datetime import datetime
+        from botocore.exceptions import ClientError
+
+        def updateRestartgenericServiceNameStatusAssociation(event,context):
+          
+          ############################################### VARS ###############################################
+
+          
+          active_region = event['active_region']
+          standby_region = event['standby_region']
+          
+          if (active_region == 'us-east-1'):
+            associationIDActive = "[ASSOCIATION_ID_HERE]" #restartgenericServiceNameStatus association in west
+            associationIDStandby = "[ASSOCIATION_ID_HERE]" #restartgenericServiceNameStatus association in east
+          elif (active_region == 'us-west-2'):
+            associationIDActive = "[ASSOCIATION_ID_HERE]" #restartgenericServiceNameStatus association in east
+            associationIDStandby = "[ASSOCIATION_ID_HERE]" #restartgenericServiceNameStatus association in west
+
+          activeCommand = "sudo su ubuntu -c \"pm2 restart genericServiceName-status\""
+          standbyCommand = "ls -al"
+          timeout = '3600'
+          assName = "restartgenericServiceNameStatus"
+          Schedule = "cron(0 00 09 ? * * *)"
+          S3bucket = "restart-genericServiceName-status-association-outputs"
+          
+          
+          ############################################### ACTIVE ###############################################
+          
+          clientActive = boto3.client('ssm',region_name=active_region)
+          
+          responseActive = clientActive.update_association(
+            AssociationId=f"{associationIDActive}",
+            AssociationName=f"{assName}",
+            ApplyOnlyAtCronInterval=True,
+            DocumentVersion='$DEFAULT',
+            ScheduleExpression=f"{Schedule}",
+            Parameters={
+                'commands': [
+                    activeCommand
+                ],
+                'executionTimeout': [
+                    timeout
+                  ]
+              },
+            OutputLocation={
+                'S3Location': {
+                    'OutputS3Region': 'us-east-1',
+                    'OutputS3BucketName': f"{S3bucket}",
+                }
+            }
+            )
+            
+          ############################################### STANDBY ###############################################
+
+          clientStandby = boto3.client('ssm',region_name=standby_region)
+          
+          responseStandby = clientStandby.update_association(
+            AssociationId=f"{associationIDStandby}",
+            AssociationName=f"{assName}",
+            ApplyOnlyAtCronInterval=True,
+            DocumentVersion='$DEFAULT',
+            ScheduleExpression=f"{Schedule}",
+            Parameters={
+                'commands': [
+                    standbyCommand
+                ],
+                'executionTimeout': [
+                    timeout
+                  ]
+              },
+            OutputLocation={
+                'S3Location': {
+                    'OutputS3Region': 'us-east-1',
+                    'OutputS3BucketName': f"{S3bucket}",
+                }
+            }
+            )
+            
+          ############################################### OUTPUT ###############################################
+
+          print("\nRequest Response Active\n:")
+          print(responseActive)
+          print("\n----------------------------------------------------------")
+          print("\nRequest Response Standby:\n")
+          print(responseStandby)
+      InputPayload:
+        active_region: '{{retrieveRegions.ACTIVE_REGION}}'
+        standby_region: '{{retrieveRegions.STANDBY_REGION}}'
+    description: Updates the restartgenericServiceNameStatus assocation
