@@ -1,0 +1,61 @@
+{
+    "Resources": {
+        "PurgeSQSRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": "purge-sqs-role",
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com",
+                                    "config.amazonaws.com"
+                                ]
+                            },
+                            "Action": "sts:AssumeRole"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": "arn:aws:iam::account#:root"
+                            },
+                            "Action": "sts:AssumeRole",
+                            "Condition": {
+                                "StringLike": {
+                                    "aws:PrincipalArn": [
+                                        "arn:aws:iam::account#:role/generic-lower_environment-ecs-instance",
+                                        "arn:aws:sts::account#:assumed-role/generic-lower_environment-ecs-instance/*"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "sqs_purge_policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Sid": "forSQS",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "sqs:ListQueues",
+                                        "sqs:PurgeQueue",
+                                        "sqs:GetQueueAttributes"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
