@@ -1,0 +1,180 @@
+# -------------------------------------
+# Creator:
+# Aaleem Siddiqui, 2023, aaleemsiddiqui@gmail.com
+# -------------------------------------
+
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: "This StackSet will create an IAM Role that allows for a client to verify a healthy status of infrastructure in each account."
+
+# ------------------------------------- Parameters -------------------------------------
+
+Parameters:
+  #AWS account number provided by Generic Company Name
+  GenericCompanyNameGenericClientAWSAccountNumber:
+    Type: String
+    Default: "123456789"
+    Description: "External AWS Account Managed by Generic Company Name that assumes this role."
+  #AWS external ID for a resource provided by Generic Company Name
+  GenericCompanyNameGenericClientExternalID:
+    Type: String
+    Default: ""
+    Description: "External ID for the AWS account Managed by Generic Company Name."
+  #Conditional variable for the master account
+  MasterAccountYorN:
+    Type: String
+    Default: "No"
+    AllowedValues: ['Yes', 'No']
+    Description: "Are you running this in the master account? If yes, type 'Yes'. If no, type 'No'."
+
+# ------------------------------------- Conditions -------------------------------------
+
+Conditions:
+  ifMasterAccount: !Equals [!Ref MasterAccountYorN, 'Yes']
+
+# ------------------------------------- Resources -------------------------------------
+
+Resources:
+  #GenericClient IAM role
+  GenericClientIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GenericClient-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: TRUST
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub "arn:aws:iam::${GenericCompanyNameGenericClientAWSAccountNumber}:root"
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              'sts:ExternalId' : !Sub ${GenericCompanyNameGenericClientExternalID}
+  # --------------------------------------------------------------------------
+  #IAM policy attached to the GenericClient IAM role
+  GenericClientIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: GenericClient-Role-Policy-RO
+      Roles:
+        - !Ref GenericClientIAMRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Sid: GenericClientACCESS
+          Effect: Allow
+          Resource: '*'
+          Action:
+          - 'autoscaling:Describe*'
+          - 'cloudformation:ListStacks'
+          - 'cloudformation:ListStackResources'
+          - 'cloudformation:DescribeStacks'
+          - 'cloudformation:DescribeStackEvents'
+          - 'cloudformation:DescribeStackResources'
+          - 'cloudformation:GetTemplate'
+          - 'cloudfront:Get*'
+          - 'cloudfront:List*'
+          - 'cloudtrail:DescribeTrails'
+          - 'cloudtrail:GetEventSelectors'
+          - 'cloudtrail:ListTags'
+          - 'cloudwatch:Describe*'
+          - 'cloudwatch:Get*'
+          - 'cloudwatch:List*'
+          - 'config:Get*'
+          - 'config:Describe*'
+          - 'config:Deliver*'
+          - 'config:List*'
+          - 'cur:Describe*'
+          - 'dms:Describe*'
+          - 'dms:List*'
+          - 'dynamodb:DescribeTable'
+          - 'dynamodb:List*'
+          - 'ec2:Describe*'
+          - 'ec2:GetReservedInstancesExchangeQuote'
+          - 'ecs:List*'
+          - 'ecs:Describe*'
+          - 'elasticache:Describe*'
+          - 'elasticache:ListTagsForResource'
+          - 'elasticbeanstalk:Check*'
+          - 'elasticbeanstalk:Describe*'
+          - 'elasticbeanstalk:List*'
+          - 'elasticbeanstalk:RequestEnvironmentInfo'
+          - 'elasticbeanstalk:RetrieveEnvironmentInfo'
+          - 'elasticfilesystem:Describe*'
+          - 'elasticloadbalancing:Describe*'
+          - 'elasticmapreduce:Describe*'
+          - 'elasticmapreduce:List*'
+          - 'es:List*'
+          - 'es:Describe*'
+          - 'firehose:ListDeliveryStreams'
+          - 'firehose:DescribeDeliveryStream'
+          - 'firehose:ListTagsForDeliveryStream'
+          - 'iam:List*'
+          - 'iam:Get*'
+          - 'iam:GenerateCredentialReport'
+          - 'kinesis:Describe*'
+          - 'kinesis:List*'
+          - 'kms:DescribeKey'
+          - 'kms:GetKeyRotationStatus'
+          - 'kms:ListKeys'
+          - 'kms:ListResourceTags'
+          - 'lambda:List*'
+          - 'logs:Describe*'
+          - 'logs:ListTagsLogGroup'
+          - 'organizations:ListAccounts'
+          - 'organizations:ListTagsForResource'
+          - 'organizations:DescribeOrganization'
+          - 'redshift:Describe*'
+          - 'route53:Get*'
+          - 'route53:List*'
+          - 'rds:Describe*'
+          - 'rds:ListTagsForResource'
+          - 's3:GetBucketAcl'
+          - 's3:GetBucketLocation'
+          - 's3:GetBucketLogging'
+          - 's3:GetBucketPolicyStatus'
+          - 's3:GetBucketPublicAccessBlock'
+          - 's3:GetAccountPublicAccessBlock'
+          - 's3:GetBucketTagging'
+          - 's3:GetBucketVersioning'
+          - 's3:GetBucketWebsite'
+          - 's3:List*'
+          - 'sagemaker:Describe*'
+          - 'sagemaker:List*'
+          - 'savingsplans:DescribeSavingsPlans'
+          - 'sdb:GetAttributes'
+          - 'sdb:List*'
+          - 'ses:Get*'
+          - 'ses:List*'
+          - 'sns:Get*'
+          - 'sns:List*'
+          - 'sqs:GetQueueAttributes'
+          - 'sqs:ListQueues'
+          - 'storagegateway:List*'
+          - 'storagegateway:Describe*'
+          - 'workspaces:Describe*'
+          - 'eks:Describe*'
+          - 'eks:List*'
+          - 'fsx:Describe*'
+  # --------------------------------------------------------------------------
+  #IAM policy attached to the GenericClient IAM role ONLY IF it is the master account        
+  GenericClientIAMPolicyMasterAccount:
+    Type: AWS::IAM::Policy
+    Condition: ifMasterAccount
+    Properties:
+      PolicyName: S3_ACCESS
+      Roles:
+        - !Ref GenericClientIAMRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Sid: S3ACCESS
+          Effect: Allow
+          Resource:
+          - 'arn:aws:s3:::generic-s3-bucket'
+          - 'arn:aws:s3:::generic-s3-bucket/*'
+          Action:
+          - 's3:Get*'
+          - 's3:List*'
