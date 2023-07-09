@@ -1,0 +1,24 @@
+{
+    "count": 1,
+    "ext_data": {
+        "software_name": "shippingPartner",
+        "software_url": "https://shippingPartner.com",
+        "order_source_id": "2",
+        "software_enabled": true,
+        "callback_url": "",
+        "shipping_softwares": [
+            {
+                "software_name": "shippingPartner",
+                "software_url": "https://shippingPartner.com",
+                "order_source_id": "2",
+                "callback_url": "",
+                "software_enabled": true,
+                "user_agent": "user_agent",
+            }
+        ]
+    },
+    "int_data": {},
+    "product": "shipping",
+    "name": "shipping",
+    "is_active": true
+}
