@@ -1,0 +1,86 @@
+# -------------------------------------
+# Creator:
+# userleem Siddiqui, 2023, aaleemsiddiqui@gmail.com
+# -------------------------------------
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: "This Cloudformation template will create an IAM Role that allows for specified permissions to Route53 for the DNS automation"
+
+# ------------------------------------- Parameters -------------------------------------
+
+Parameters:
+  #Name of the IAM role
+  RoleName:
+    Type: String
+    Default: "DNS-Automation-Role"
+    Description: "Name of the IAM role, do not change."
+
+  #AWS account number provided the Jenkins nodes reside 
+  GenericAWSAccountNumber:
+    Type: String
+    Default: "123456789"
+    Description: "AWS account number provided the Jenkins nodes reside."
+
+# ------------------------------------- Resources -------------------------------------
+
+Resources:
+  #DNS Automation IAM role
+  DNSAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: AWS
+          Effect: Allow
+          Principal:
+            Service:
+            - config.amazonaws.com
+            - ec2.amazonaws.com
+          Action: sts:AssumeRole
+        - Sid: TRUST
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub "arn:aws:iam::${GenericAWSAccountNumber}:root"
+          Action: sts:AssumeRole
+          Condition:
+            StringLike:
+              aws:PrincipalArn:
+                - !Sub arn:aws:iam::${GenericAWSAccountNumber}:role/GenericJenkinsRole
+                - !Sub arn:aws:sts::${GenericAWSAccountNumber}:assumed-role/*
+
+  # ------------------------------------- Policies -------------------------------------
+  #IAM policy attached to the DNS Automation IAM role
+
+      Policies:
+      - PolicyName: Route53-Access-Policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Sid: ROUTE53
+            Effect: Allow
+            Resource: '*'
+            Action:
+            - 'route53:Get*'
+            - 'route53:List*'
+            - 'route53:ChangeResourceRecordSets'
+
+  # --------------------------------------------------------------------------
+  #IAM policy attached to the DNS Automation IAM role
+
+      - PolicyName: S3-Backend-Policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Sid: S3
+            Effect: Allow
+            Resource: '*'
+            Action:
+            - 's3:ListBucket'
+            - 's3:GetBucketVersioning'
+            - 's3:CreateBucket'
+            - 's3:PutObject'
+            - 's3:GetObject'
+      RoleName: !Ref RoleName
+
