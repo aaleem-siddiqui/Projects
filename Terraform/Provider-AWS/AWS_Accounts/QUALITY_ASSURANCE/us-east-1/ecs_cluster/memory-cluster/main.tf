@@ -1,0 +1,25 @@
+module "ecs_cluster" {
+  source                            = "../../../../../../modules/ecs_cluster"
+  project                           = var.project
+  stack                             = var.stack
+  cluster_revision                  = var.cluster_revision
+  ecs_region                        = var.ecs_cluster__ecs_region
+  ec2_subnets                       = var.ecs_cluster__ec2_subnet_id
+  ec2_security_groups               = var.ecs_cluster__ec2_security_groups
+  ec2_ssh_key_name                  = var.ecs_cluster__ec2_ssh_key_name
+  ec2_instance_type                 = var.ecs_cluster__ec2_instance_type
+  ec2_max_count                     = var.ecs_cluster__ec2_max_count
+  ec2_min_count                     = var.ecs_cluster__ec2_min_count
+  ec2_desired_count                 = var.ecs_cluster__ec2_desired_count
+  on_demand_percentage              = var.ecs_cluster__on_demand_percentage
+  scaling_by_mem_and_cpu            = var.ecs_cluster__scaling_by_mem_and_cpu
+  available_ec2_types               = var.ecs_cluster__available_ec2_types
+  security_software_code            = var.ecs_cluster__security_software_code
+  security_software_sensor_kit      = var.ecs_cluster__security_software_sensor_kit
+  FW_user                           = var.ecs_cluster__FW_user
+  FW_pass                           = var.ecs_cluster__FW_pass
+  FW_consoleauth                    = var.ecs_cluster__FW_consoleauth
+  FW_defender_secret_arn            = var.ecs_cluster__FW_defender_secret_arn
+  FW_defender_kms_arn               = var.ecs_cluster__FW_defender_kms_arn
+  tags                              = var.tags
+}
