@@ -30,10 +30,8 @@ mainSteps:
       Runtime: python3.6
       Handler: get_active_stack
       Script: |
-        import sys
         import boto3
         import json
-        import base64
         from datetime import datetime
         from botocore.exceptions import ClientError
 
@@ -100,12 +98,8 @@ mainSteps:
       Runtime: python3.6
       Handler: updateRestartgenericServiceNameStatusAssociation
       Script: |-
-        import sys
         import boto3
-        import json
-        import base64
         from datetime import datetime
-        from botocore.exceptions import ClientError
 
         def updateRestartgenericServiceNameStatusAssociation(event,context):
           
