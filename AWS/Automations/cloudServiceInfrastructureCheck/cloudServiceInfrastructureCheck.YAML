@@ -1,0 +1,647 @@
+# -------------------------------------
+# Creator: Aaleem Siddiqui, 2023, aaleemsiddiqui@gmail.com
+# Description: SSM Automation to check Infrastructure status associated with a service hosted in AWS
+# -------------------------------------
+
+description: |-
+  # **genericServiceName INFRA CHECK**  
+
+  ---
+  ## INSTRUCTIONS FOR RUNNING AUTOMATION
+
+
+  1. *Click on "Execute Automation" in the top right corner.*
+  2. *Choose Multi-Account and Region.*
+  3. *For targets accounts, enter (AWSaccountNumber) for genericServiceName-LWR_ENV.*
+  4. *Set the region as us-east-1 OR us-west-2.*
+  - **NOTE**: Do not choose more than one region, otherwise the automation will run twice.
+  5. *Scroll down to the bottom and hit "Execute."*
+schemaVersion: '0.3'
+assumeRole: '{{ AutomationAssumeRole }}'
+parameters:
+  AutomationAssumeRole:
+    type: String
+    description: The IAM role that runs the automation (DO NOT CHANGE.)
+    allowedPattern: '^$|^arn:aws:iam::[0-9]*:role/[/\w+=,.@-]+$'
+    default: 'arn:aws:iam::AWSaccountNumber:role/AWS-SystemsManager-AutomationAdministrationRole'
+  SlackChannel:
+    type: String
+    default: slack1
+    allowedValues:
+      - slack1
+      - slack2
+      - slack3
+mainSteps:
+  - name: checkInfrastruture
+    action: 'aws:executeScript'
+    inputs:
+      Runtime: python3.6
+      Handler: check_infra
+      Script: |
+        import boto3
+        import json
+        import re
+        import time
+        from datetime import datetime
+        from botocore.exceptions import ClientError
+
+        def check_infra(event,context):
+          print("\n")
+            
+          #setting date/time and other vars
+          dt_raw = datetime.now()
+          current_datetime = dt_raw.strftime("%Y-%m-%dT%H:%M:00Z")
+          print_datetime = dt_raw.strftime("%m/%d/%Y %H:%M:%S")
+          
+          print_time = f"CHECKING INFRASTRUCTURE...\nTHE CURRENT DATE AND TIME IS: {print_datetime}."
+          print(print_time)
+          
+          # ------------------ secrets manager ------------------
+          
+          session = boto3.session.Session()
+          try:
+            secret_name = "arn:aws:secretsmanager:us-east-1:AWSAccountNumber:secret:QA-MICROSERVICE"
+            client = session.client(service_name='secretsmanager',region_name="us-east-1")
+            get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+            microservice_secrets = json.loads(get_secret_value_response['SecretString'])
+            if (microservice_secrets['PRIMARY-QA-MICROSERVICE'] != 'EAST' and microservice_secrets['PRIMARY-QA-MICROSERVICE'] != 'WEST'):
+              secretsManagerStatus = 'SECRETS MANAGER: ANOMALY DETECTED ❌ | THERE IS AN ISSUE WITH THE SECRETS IN US-EAST-1'
+            elif (microservice_secrets['QA_CONNECTION_EAST'] == '' or microservice_secrets['QA_CONNECTION_WEST'] == '' or microservice_secrets['LM_API_ID'] == '' or microservice_secrets['LM_API_KEY'] == ''):
+              secretsManagerStatus = 'SECRETS MANAGER: ANOMALY DETECTED ❌| THERE IS AN ISSUE WITH THE SECRETS IN US-EAST-1'
+            else:
+              secretsManagerStatus = 'SECRETS MANAGER: OK ✅'
+          except:
+            try:
+              secret_name = "arn:aws:secretsmanager:us-west-2:AWSAccountNumber:secret:QA-MICROSERVICE"
+              client = session.client(service_name='secretsmanager',region_name="us-west-2")
+              get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+              microservice_secrets = json.loads(get_secret_value_response['SecretString'])
+              if (microservice_secrets['PRIMARY-QA-MICROSERVICE'] != 'EAST' and microservice_secrets['PRIMARY-QA-MICROSERVICE'] != 'WEST'):
+                secretsManagerStatus = 'SECRETS MANAGER: ANOMALY DETECTED ❌ | THERE IS AN ISSUE WITH THE SECRETS IN US-WEST-2'
+              elif (microservice_secrets['QA_CONNECTION_EAST'] == '' or microservice_secrets['QA_CONNECTION_WEST'] == '' or microservice_secrets['LM_API_ID'] == '' or microservice_secrets['LM_API_KEY'] == ''):
+                secretsManagerStatus = 'SECRETS MANAGER: ANOMALY DETECTED ❌ | THERE IS AN ISSUE WITH THE SECRETS IN US-WEST-2'
+              else:
+                secretsManagerStatus ='SECRETS MANAGER: OK ✅ | HOWEVER, THERE IS AN ISSUE WITH THE QA-MICROSERVICE SECRET IN US-EAST-1'
+            except:
+              secretsManagerStatus = 'SECRETS MANAGER: ANOMALY DETECTED ❌ | UNALBE TO RETRIEVE SECRETS FROM US-EAST-1 OR US-WEST-2.'
+          
+          if (microservice_secrets['PRIMARY-QA-MICROSERVICE'] == 'EAST'):
+            activeRegion ='us-east-1'
+            standbyRegion ='us-west-2'
+            activeCreds = microservice_secrets['QA_CONNECTION_EAST'] #docdb creds east
+            standbyCreds = microservice_secrets['QA_CONNECTION_WEST'] #docdb creds west
+            activeLBListenerARN = 'arn:aws:elasticloadbalancing:us-east-1:AWSAccountNumber:listener/app/'
+            standbyLBListenerARN = 'arn:aws:elasticloadbalancing:us-west-2:AWSAccountNumber:listener/app/'
+            restartServicesActive = '[ASSOCIATION_ID_HERE]'
+            restartServicesStandby = '[ASSOCIATION_ID_HERE]'
+            restartAllServicesActive = '[ASSOCIATION_ID_HERE]'
+            restartAllServicesStandby = '[ASSOCIATION_ID_HERE]'
+            ECSClusterActive = 'qa-microservice-cluster'
+            ECSClusterStandby = 'qa-microservice-cluster-west'
+            ECSServiceARNActive = 'arn:aws:ecs:us-east-1:AWSAccountNumber:service/qa-microservice-cluster/qa-microservice'
+            ECSServiceARNStandby = 'arn:aws:ecs:us-west-2:AWSAccountNumber:service/qa-microservice-cluster-west/qa-microservice'
+            stopServicesNewStandbyActive = '[ASSOCIATION_ID_HERE]'
+            stopServicesNewStandbyStandby = '[ASSOCIATION_ID_HERE]'
+            specificInstancesRGActive = 'arn:aws:resource-groups:us-east-1:AWSAccountNumber:group/QA_MICROSERVICE_INSTANCES_EAST'
+            specificInstancesRGStandby = 'arn:aws:resource-groups:us-west-2:AWSAccountNumber:group/QA_MICROSERVICE_INSTANCES_WEST'
+            allInstancesRGActive = 'arn:aws:resource-groups:us-east-1:AWSAccountNumber:group/QA_MICROSERVICE_APPLICATION_INSTANCES_EAST'
+            allInstancesRGStandby = 'arn:aws:resource-groups:us-west-2:AWSAccountNumber:group/QA_MICROSERVICE_APPLICATION_INSTANCES_WEST'
+            specificInstancesActive = ["i-1234567890", "i-1234567890", "i-1234567890"]
+            specificInstancesStandby = ["i-1234567890", "i-1234567890", "i-1234567890"]
+            allInstancesActive = ["i-1234567890","i-1234567890","i-1234567890","i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890"]
+            allInstancesStandby = ["i-1234567890","i-1234567890","i-1234567890", "i-1234567890","i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890"]
+          elif (microservice_secrets['PRIMARY-QA-MICROSERVICE'] == 'WEST'):
+            activeRegion ='us-west-2'
+            standbyRegion ='us-east-1'
+            activeCreds = microservice_secrets['QA_CONNECTION_WEST'] #docdb creds west
+            standbyCreds = microservice_secrets['QA_CONNECTION_EAST'] #docdb creds east
+            activeLBListenerARN = 'arn:aws:elasticloadbalancing:us-west-2:AWSAccountNumber:listener/app/'
+            standbyLBListenerARN = 'arn:aws:elasticloadbalancing:us-east-1:AWSAccountNumber:listener/app/'
+            restartServicesActive = '[ASSOCIATION_ID_HERE]'
+            restartServicesStandby = '[ASSOCIATION_ID_HERE]'
+            restartAllServicesActive = '[ASSOCIATION_ID_HERE]'
+            restartAllServicesStandby = '[ASSOCIATION_ID_HERE]'
+            ECSClusterActive = 'qa-microservice-cluster-west'
+            ECSClusterStandby = 'qa-microservice-cluster'
+            ECSServiceARNActive = 'arn:aws:ecs:us-west-2:AWSAccountNumber:service/qa-microservice-cluster-west/qa-microservice'
+            ECSServiceARNStandby = 'arn:aws:ecs:us-east-1:AWSAccountNumber:service/qa-microservice-cluster/qa-microservice'
+            stopServicesNewStandbyActive = '[ASSOCIATION_ID_HERE]'
+            stopServicesNewStandbyStandby = '[ASSOCIATION_ID_HERE]'
+            specificInstancesRGActive = 'arn:aws:resource-groups:us-west-2:AWSAccountNumber:group/QA_MICROSERVICE_INSTANCES_WEST'
+            specificInstancesRGStandby = 'arn:aws:resource-groups:us-east-1:AWSAccountNumber:group/QA_MICROSERVICE_INSTANCES_EAST'
+            allInstancesRGActive = 'arn:aws:resource-groups:us-west-2:AWSAccountNumber:group/QA_MICROSERVICE_APPLICATION_INSTANCES_WEST'
+            allInstancesRGStandby = 'arn:aws:resource-groups:us-east-1:AWSAccountNumber:group/QA_MICROSERVICE_APPLICATION_INSTANCES_EAST'
+            specificInstancesActive = ["i-1234567890", "i-1234567890", "i-1234567890"]
+            specificInstancesStandby = ["i-1234567890", "i-1234567890", "i-1234567890"]
+            allInstancesActive = ["i-1234567890","i-1234567890","i-1234567890", "i-1234567890","i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890"]
+            allInstancesStandby = ["i-1234567890","i-1234567890","i-1234567890","i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890", "i-1234567890"]
+          
+          print_regions = f"CURRENT ACTIVE REGION: {activeRegion}\nCURRENT STANDBY REGION: {standbyRegion}\n----------------------------------------------\n"
+          print(print_regions)
+          
+         # ------------------ documentdb (active) ------------------
+         
+          nodeList = ["QA-MICROSERVICE-db-node-0-0","QA-MICROSERVICE-db-node-0-1","QA-MICROSERVICE-db-node-0-2"]
+          responseOutputs = []
+          client = client = boto3.client('docdb',region_name=activeRegion)
+          successCounter = 0
+         
+          for x in range(len(nodeList)):
+            response = client.describe_db_instances(
+              DBInstanceIdentifier=nodeList[x],
+              )
+            responseOutputs.append(response)
+          
+          for i in range(len(responseOutputs)):
+            try:
+              parseResponseOutput = responseOutputs[i]["DBInstances"][0]["DBInstanceStatus"]
+              if (parseResponseOutput == 'available'):
+                successCounter += 1
+            except AtrributeError:
+              if re.search(r"\b'DBInstanceStatus': 'available', 'Endpoint':\b", str(responseOutputs[i])):
+                successCounter += 1
+            except:
+              docDBStatusActive = "DOCUMENTDB ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE"
+          
+          if (successCounter == len(nodeList)):
+            docDBStatusActive = "DOCUMENTDB ACTIVE: OK ✅"
+          else:
+            docDBStatusActive = "DOCUMENTDB ACTIVE: ANOMALY DETECTED ❌ | ONE OR MORE OF THE NODES HAVE EITHER CHANGED, OR ARE NOT IN AN AVAILABLE STATE."
+         
+         # ------------------ documentdb (standby) ------------------
+         
+          responseOutputs = []
+          client = client = boto3.client('docdb',region_name=standbyRegion)
+          successCounter = 0
+         
+          for x in range(len(nodeList)):
+            response = client.describe_db_instances(
+              DBInstanceIdentifier=nodeList[x],
+              )
+            responseOutputs.append(response)
+          
+          for i in range(len(responseOutputs)):
+            try:
+              parseResponseOutput = responseOutputs[i]["DBInstances"][0]["DBInstanceStatus"]
+              if (parseResponseOutput == 'available'):
+                successCounter += 1
+            except AtrributeError:
+              if re.search(r"\b'DBInstanceStatus': 'available', 'Endpoint':\b", str(responseOutputs[i])):
+                successCounter += 1
+            except:
+              docDBStatusStandby = "DOCUMENTDB STANDBY: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE"
+          
+          if (successCounter == len(nodeList)):
+            docDBStatusStandby = "DOCUMENTDB STANDBY: OK ✅"
+          else:
+            docDBStatusStandby = "DOCUMENTDB STANDBY: ANOMALY DETECTED ❌ | ONE OR MORE OF THE NODES HAVE EITHER CHANGED, OR ARE NOT IN AN AVAILABLE STATE."
+         
+         # ------------------ runMongoQueriesLambda (active) ------------------
+         
+          activeLambdaPayload={"region":activeRegion,"creds":activeCreds,"readOnly":"true"} 
+          
+          try:
+            client = boto3.client(service_name='lambda',region_name=activeRegion)
+            response = client.invoke(
+              FunctionName=f"arn:aws:lambda:{activeRegion}:AWSAccountNumber:function:runMongoQueries",
+              InvocationType='RequestResponse',
+              LogType='Tail',
+              Payload=json.dumps(activeLambdaPayload)
+              )
+            lambdaStatusActive = "LAMBDA (runMongoQueries) ACTIVE: OK ✅"
+          except:
+            lambdaStatusActive = "LAMBDA (runMongoQueries) ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO REACH THE LAMBDA. CHECK TO SEE IF IT STILL EXISTS."
+          
+          lambdaOutput = response['Payload']
+          LO = lambdaOutput.read()
+          LO_remove_backslash = str(LO).replace("\\","")
+          LO_parsed = str(LO_remove_backslash).split(",")
+          
+          #microservice disabled parsing
+          microService1Check = re.search(r"{\\'microServiceDisabled\\': (.*)}}]\"', ' \"Reports\"", str(LO_parsed))
+
+          #reports parsing
+          microService2Check = re.search(r"'sendToS3\\': (.*)}', \" 'report1':", str(LO_parsed))
+          microService3Check = re.search(r"{'sendToS3': (.*)}\", \" 'report2':", str(LO_parsed))
+          microService4Check = re.search(r"'report2': {'sendToS3': (.*)}\", ' \\'report3\\'", str(LO_parsed))
+          microService5Check = re.search(r"'report3\\': {\\'sendToS3\\': (.*)}}}}]\"'", str(LO_parsed))
+
+          #partners config parsing
+          partner1Check = re.search(r"{\\'partner1\\': {\\'apiInfo\\': {\\'fakeApi\\': (.*)}}', \"", str(LO_parsed))
+          partner3Check = re.search(r"\" 'partner3': {'apiInfo': {'fakeApi': (.*)}}\", ' \\'partner2\\':", str(LO_parsed))
+          partner2Check = re.search(r"'partner2\\': {\\'apiInfo\\': {\\'fakeApi\\': (.*)}}}}}]", str(LO_parsed))
+          
+          try:
+            if ((microService1Check.group(1) == 'False') and (microService2Check.group(1) == 'True') and (microService3Check.group(1) == 'True') and (microService4Check.group(1) == 'True') and (microService5Check.group(1) == 'True') and (partner1Check.group(1) == 'False') and (partner2Check.group(1) == 'False') and (partner3Check.group(1) == 'False')):
+              dbValueStatusActive = "VALUES IN DOCUMENTDB ACTIVE: OK ✅"
+            elif ((microService1Check.group(1) == 'True') and (microService2Check.group(1) == 'False') and (microService3Check.group(1) == 'False') and (microService4Check.group(1) == 'False') and (microService5Check.group(1) == 'False') and (partner1Check.group(1) == 'True') and (partner2Check.group(1) == 'True') and (partner3Check.group(1) == 'True')):
+              dbValueStatusActive = "VALUES IN DOCUMENTDB ACTIVE: ANOMALY DETECTED ❌ | THE DB VALUES ARE NOT WHAT THEY ARE SUPPOSED TO BE."
+          except:
+            dbValueStatusActive = "LAMBDA ACTIVE: UNABLE TO VALIDATE ❌"
+            
+         # ------------------ runMongoQueriesLambda (standby) ------------------
+         
+          standbyLambdaPayload={"region":standbyRegion,"creds":standbyCreds,"readOnly":"true"} 
+          
+          try:
+            client = boto3.client(service_name='lambda',region_name=standbyRegion)
+            response = client.invoke(
+              FunctionName=f"arn:aws:lambda:{standbyRegion}:AWSAccountNumber:function:runMongoQueries",
+              InvocationType='RequestResponse',
+              LogType='Tail',
+              Payload=json.dumps(standbyLambdaPayload)
+              )
+            lambdaStatusStandby = "LAMBDA (runMongoQueries) STANDBY: OK ✅"
+          except:
+            lambdaStatusStandby = "LAMBDA (runMongoQueries) STANDBY: ANOMALY DETECTED ❌ | UNABLE TO REACH THE LAMBDA. CHECK TO SEE IF IT STILL EXISTS."
+          
+          lambdaOutput = response['Payload']
+          LO = lambdaOutput.read()
+          LO_remove_backslash = str(LO).replace("\\","")
+          LO_parsed = str(LO_remove_backslash).split(",")
+          
+          #microservice disabled parsing
+          microService1Check = re.search(r"{\\'microServiceDisabled\\': (.*)}}]\"', ' \"Reports\"", str(LO_parsed))
+
+          #reports parsing
+          microService2Check = re.search(r"'sendToS3\\': (.*)}', \" 'report1':", str(LO_parsed))
+          microService3Check = re.search(r"{'sendToS3': (.*)}\", \" 'report2':", str(LO_parsed))
+          microService4Check = re.search(r"'report2': {'sendToS3': (.*)}\", ' \\'report3\\'", str(LO_parsed))
+          microService5Check = re.search(r"'report3\\': {\\'sendToS3\\': (.*)}}}}]\"'", str(LO_parsed))
+
+          #partners config parsing
+          partner1Check = re.search(r"{\\'partner1\\': {\\'apiInfo\\': {\\'fakeApi\\': (.*)}}', \"", str(LO_parsed))
+          partner3Check = re.search(r"\" 'partner3': {'apiInfo': {'fakeApi': (.*)}}\", ' \\'partner2\\':", str(LO_parsed))
+          partner2Check = re.search(r"'partner2\\': {\\'apiInfo\\': {\\'fakeApi\\': (.*)}}}}}]", str(LO_parsed))
+          
+          try:
+            if ((microService1Check.group(1) == 'False') and (microService2Check.group(1) == 'True') and (microService3Check.group(1) == 'True') and (microService4Check.group(1) == 'True') and (microService5Check.group(1) == 'True') and (partner1Check.group(1) == 'False') and (partner2Check.group(1) == 'False') and (partner3Check.group(1) == 'False')):
+              dbValueStatusStandby = "VALUES IN DOCUMENTDB STANDBY: ANOMALY DETECTED ❌| THE DB VALUES ARE NOT WHAT THEY ARE SUPPOSED TO BE."
+            elif ((microService1Check.group(1) == 'True') and (microService2Check.group(1) == 'False') and (microService3Check.group(1) == 'False') and (microService4Check.group(1) == 'False') and (microService5Check.group(1) == 'False') and (partner1Check.group(1) == 'True') and (partner2Check.group(1) == 'True') and (partner3Check.group(1) == 'True')):
+              dbValueStatusStandby = "VALUES IN DOCUMENTDB STANDBY: OK ✅"
+          except:
+            dbValueStatusStandby = "LAMBDA STANDBY: UNABLE TO VALIDATE ❌"
+
+         # ------------------ LB and LB listener (active) ------------------
+          
+          try:
+            client = boto3.client('elbv2', region_name = activeRegion)
+            response = client.describe_listeners(
+              ListenerArns=[activeLBListenerARN]
+            )
+            activeLBListenerStatus = "LB LISTENER (MICROSERVICE-QA) ARN ACTIVE: OK ✅"
+          except:
+            activeLBListenerStatus = "LB LISTENER (MICROSERVICE-QA) ARN ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO REACH LISTENER. CHECK TO SEE IF IT STILL EXISTS."
+            
+          activeLBListenerPort = response["Listeners"][0]["Port"]
+          
+          try:
+            if (activeLBListenerPort == 443):
+              activeLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT ACTIVE: OK ✅"
+            elif (activeLBListenerPort == 4443):
+              activeLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT ACTIVE: ANOMALY DETECTED ❌ | THE PORT ON THE LOADBALANCER LISTENER IS 4443. IT SHOULD BE 443."
+            else:
+              activeLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT ACTIVE: UNABLE TO VALIDATE ❌ | THE PORT ON THE LOADBALANCER LISTENER IS AN UNEXPECTED VALUE. IT SHOULD BE 443."
+          except:
+            activeLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT ACTIVE: UNABLE TO VALIDATE ❌"
+            
+         # ------------------ LB and LB listener (standby) ------------------
+          
+          try:
+            client = boto3.client('elbv2', region_name = standbyRegion)
+            response = client.describe_listeners(
+              ListenerArns=[standbyLBListenerARN]
+            )
+            standbyLBListenerStatus = "LB LISTENER (MICROSERVICE-QA) ARN STANDBY: OK ✅"
+          except:
+            standbyLBListenerStatus = "LB LISTENER (MICROSERVICE-QA) ARN STANDBY: ANOMALY DETECTED ❌ | UNABLE TO REACH LISTENER. CHECK TO SEE IF IT STILL EXISTS."
+            
+          standbyLBListenerPort = response["Listeners"][0]["Port"]
+          
+          try:
+            if (standbyLBListenerPort == 443):
+              standbyLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT STANDBY: OK ✅"
+            elif (standbyLBListenerPort == 4443):
+              standbyLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT STANDBY: ANOMALY DETECTED ❌ | THE PORT ON THE LOADBALANCER LISTENER IS 4443. IT SHOULD BE 443."
+            else:
+              standbyLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT STANDBY: UNABLE TO VALIDATE ❌ | THE PORT ON THE LOADBALANCER LISTENER IS AN UNEXPECTED VALUE. IT SHOULD BE 443."
+          except:
+            standbyLBListenerPortStatus = "LB LISTENER (MICROSERVICE-QA) PORT STANDBY: UNABLE TO VALIDATE ❌"
+            
+          # ------------------ Associations (restartServices Active)------------------
+
+          try:
+            client = boto3.client('ssm', region_name = activeRegion)
+            response = client.describe_association(
+              AssociationId=restartServicesActive
+            )
+            restartServicesAssActiveStatus = "ASSOCIATION (restartServices) ACTIVE: OK ✅"
+          except:
+            restartServicesAssActiveStatus = "ASSOCIATION (restartServices) ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE ASSOCIATION. CHECK TO SEE IF IT STILL EXISTS."
+            
+          lastAssStatus = response["AssociationDescription"]["Overview"]["Status"]
+          if (lastAssStatus == 'Success'):
+            restartServicesAssActiveLastRun = "ASSOCIATION (restartServices) ACTIVE PREVIOUS RUN: OK ✅"
+          else:
+            restartServicesAssActiveLastRun = "ASSOCIATION (restartServices) ACTIVE PREVIOUS RUN: ANOMALY DETECTED ❌ | THIS ASSOCIATION DID NOT REACH ALL TARGETS SUCCESSFULLY IN IT'S LAST RUN. PLEASE CHECK THE ASSOCIATION TARGET OUTPUTS TO SEE IF THIS IS EXPECTED."
+            
+            
+            # ------------------ Associations (restartServices Standby)------------------
+
+          try:
+            client = boto3.client('ssm', region_name = standbyRegion)
+            response = client.describe_association(
+              AssociationId=restartServicesStandby
+            )
+            restartServicesAssStandbyStatus = "ASSOCIATION (restartServices) STANDBY: OK ✅"
+          except:
+            restartServicesAssStandbyStatus = "ASSOCIATION (restartServices) STANDBY: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE ASSOCIATION. CHECK TO SEE IF IT STILL EXISTS."
+            
+          lastAssStatus = response["AssociationDescription"]["Overview"]["Status"]
+          if (lastAssStatus == 'Success'):
+            restartServicesAssStandbyLastRun = "ASSOCIATION (restartServices) STANDBY PREVIOUS RUN: OK ✅"
+          else:
+            restartServicesAssStandbyLastRun = "ASSOCIATION (restartServices) STANDBY PREVIOUS RUN: ANOMALY DETECTED ❌ | THIS ASSOCIATION DID NOT REACH ALL TARGETS SUCCESSFULLY IN IT'S LAST RUN. PLEASE CHECK THE ASSOCIATION TARGET OUTPUTS TO SEE IF THIS IS EXPECTED."
+          
+          # ------------------ Associations (restartAllServices Active)------------------
+
+          try:
+            client = boto3.client('ssm', region_name = activeRegion)
+            response = client.describe_association(
+              AssociationId=restartAllServicesActive
+            )
+            restartAllServicesAssActiveStatus = "ASSOCIATION (restartAllServices) ACTIVE: OK ✅"
+          except:
+            restartAllServicesAssActiveStatus = "ASSOCIATION (restartAllServices) ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE ASSOCIATION. CHECK TO SEE IF IT STILL EXISTS."
+            
+          lastAssStatus = response["AssociationDescription"]["Overview"]["Status"]
+          if (lastAssStatus == 'Success'):
+            restartAllServicesAssActiveLastRun = "ASSOCIATION (restartAllServices) ACTIVE PREVIOUS RUN: OK ✅"
+          else:
+            restartAllServicesAssActiveLastRun = "ASSOCIATION (restartAllServices) ACTIVE PREVIOUS RUN: ANOMALY DETECTED ❌ | THIS ASSOCIATION DID NOT REACH ALL TARGETS SUCCESSFULLY IN IT'S LAST RUN. PLEASE CHECK THE ASSOCIATION TARGET OUTPUTS TO SEE IF THIS IS EXPECTED."
+            
+            
+            # ------------------ Associations (restartAllServices Standby)------------------
+
+          try:
+            client = boto3.client('ssm', region_name = standbyRegion)
+            response = client.describe_association(
+              AssociationId=restartAllServicesStandby
+            )
+            restartAllServicesAssStandbyStatus = "ASSOCIATION (restartAllServices) STANDBY: OK ✅"
+          except:
+            restartAllServicesAssStandbyStatus = "ASSOCIATION (restartAllServices) STANDBY: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE ASSOCIATION. CHECK TO SEE IF IT STILL EXISTS."
+            
+          lastAssStatus = response["AssociationDescription"]["Overview"]["Status"]
+          if (lastAssStatus == 'Success'):
+            restartAllServicesAssStandbyLastRun = "ASSOCIATION (restartAllServices) STANDBY PREVIOUS RUN: OK ✅"
+          else:
+            restartAllServicesAssStandbyLastRun = "ASSOCIATION (restartAllServices) STANDBY PREVIOUS RUN: ANOMALY DETECTED ❌ | THIS ASSOCIATION DID NOT REACH ALL TARGETS SUCCESSFULLY IN IT'S LAST RUN. PLEASE CHECK THE ASSOCIATION TARGET OUTPUTS TO SEE IF THIS IS EXPECTED."
+          
+
+          # ------------------ Elastic Container Service (Active) ------------------
+          
+          try:
+            client = boto3.client('ecs', region_name = activeRegion)
+            response = client.list_services(
+              cluster = ECSClusterActive
+              )
+            clusterActiveStatus = "MICROSERVICE ECS CLUSTER ACTIVE: OK ✅"
+            ECSServices = response["serviceArns"]
+            if ECSServiceARNActive in ECSServices:
+              ECSServiceActiveStatus = "MICROSERVICE ECS SERVICE ACTIVE: OK ✅"
+            else:
+              ECSServiceActiveStatus = "MICROSERVICE ECS SERVICE ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO REACH ECS SERVICE."
+          except:
+            clusterActiveStatusStatus = "MICROSERVICE ECS CLUSTER ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO REACH ECS CLUSTER."
+          
+          # ------------------ Elastic Container Service (Standby) ------------------
+
+          try:
+            client = boto3.client('ecs', region_name = standbyRegion)
+            response = client.list_services(
+              cluster = ECSClusterStandby
+              )
+            clusterStandbyStatus = "MICROSERVICE ECS CLUSTER STANDBY: OK ✅"
+            ECSServices = response["serviceArns"]
+            if ECSServiceARNStandby in ECSServices:
+              ECSServiceStandbyStatus = "MICROSERVICE ECS SERVICE STANDBY: OK ✅"
+            else:
+              ECSServiceStandbyStatus = "MICROSERVICE ECS SERVICE STANDBY: ANOMALY DETECTED ❌ | UNABLE TO REACH ECS SERVICE."
+          except:
+            clusterStandbyStatus = "MICROSERVICE ECS CLUSTER STANDBY: ANOMALY DETECTED ❌ | UNABLE TO REACH ECS CLUSTER."
+            
+          # ------------------ Associations (stopServicesNewStandby Active)------------------
+
+          try:
+            client = boto3.client('ssm', region_name = activeRegion)
+            response = client.describe_association(
+              AssociationId=stopServicesNewStandbyActive
+            )
+            stopServicesNewStandbyAssActiveStatus = "ASSOCIATION (stopServicesNewStandby) ACTIVE: OK ✅"
+          except:
+            stopServicesNewStandbyAssActiveStatus = "ASSOCIATION (stopServicesNewStandby) ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE ASSOCIATION. CHECK TO SEE IF IT STILL EXISTS."
+            
+          lastAssStatus = response["AssociationDescription"]["Overview"]["Status"]
+          if (lastAssStatus == 'Success'):
+            stopServicesNewStandbyAssActiveLastRun = "ASSOCIATION (stopServicesNewStandby) ACTIVE PREVIOUS RUN: OK ✅"
+          else:
+            stopServicesNewStandbyAssActiveLastRun = "ASSOCIATION (stopServicesNewStandby) ACTIVE PREVIOUS RUN: ANOMALY DETECTED ❌ | THIS ASSOCIATION DID NOT REACH ALL TARGETS SUCCESSFULLY IN IT'S LAST RUN. PLEASE CHECK THE ASSOCIATION TARGET OUTPUTS TO SEE IF THIS IS EXPECTED."
+            
+            # ------------------ Associations (stopServicesNewStandby Standby)------------------
+
+          try:
+            client = boto3.client('ssm', region_name = standbyRegion)
+            response = client.describe_association(
+              AssociationId=stopServicesNewStandbyStandby
+            )
+            stopServicesNewStandbyAssStandbyStatus = "ASSOCIATION (stopServicesNewStandby) STANDBY: OK ✅"
+          except:
+            stopServicesNewStandbyAssStandbyStatus = "ASSOCIATION (stopServicesNewStandby) STANDBY: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE ASSOCIATION. CHECK TO SEE IF IT STILL EXISTS."
+            
+          lastAssStatus = response["AssociationDescription"]["Overview"]["Status"]
+          if (lastAssStatus == 'Success'):
+           stopServicesNewStandbyAssStandbyLastRun = "ASSOCIATION (stopServicesNewStandby) STANDBY PREVIOUS RUN: OK ✅"
+          else:
+            stopServicesNewStandbyAssStandbyLastRun = "ASSOCIATION (stopServicesNewStandby) STANDBY PREVIOUS RUN: ANOMALY DETECTED ❌ | THIS ASSOCIATION DID NOT REACH ALL TARGETS SUCCESSFULLY IN IT'S LAST RUN. PLEASE CHECK THE ASSOCIATION TARGET OUTPUTS TO SEE IF THIS IS EXPECTED."
+
+            # ------------------ resource groups (Specific - Active) ------------------
+          
+          try:
+            client = boto3.client('resource-groups', region_name = activeRegion)
+            response = client.list_group_resources(
+              Group = specificInstancesRGActive
+              )
+            if all([x in str(response) for x in specificInstancesActive]):
+              specificRGActiveStatus = "RESOURCE GROUP (Specific Instances) ACTIVE: OK ✅"
+            else:
+              specificRGActiveStatus = "RESOURCE GROUP (Specific Instances) ACTIVE: ANOMALY DETECTED ❌ | THE INSTANCES IN THIS RESOURCE GROUP HAVE CHANGED."
+          except:
+            specificRGActiveStatus = "RESOURCE GROUP (Specific Instances) ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE RESOURCE GROUP OR TARGETS."
+            
+            # ------------------ resource groups (Specific - Standby) ------------------
+          
+          try:
+            client = boto3.client('resource-groups', region_name = standbyRegion)
+            response = client.list_group_resources(
+              Group = specificInstancesRGStandby
+              )
+            if all([x in str(response) for x in specificInstancesStandby]):
+              specificRGStandbyStatus = "RESOURCE GROUP (Specific Instances) STANDBY: OK ✅"
+            else:
+              specificRGStandbyStatus = "RESOURCE GROUP (Specific Instances) STANDBY: ANOMALY DETECTED ❌ | THE INSTANCES IN THIS RESOURCE GROUP HAVE CHANGED."
+          except:
+            specificRGStandbyStatus = "RESOURCE GROUP (Specific Instances) STANDBY: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE RESOURCE GROUP OR TARGETS."
+
+            # ------------------ resource groups (All - Active) ------------------
+          
+          try:
+            client = boto3.client('resource-groups', region_name = activeRegion)
+            response = client.list_group_resources(
+              Group = allInstancesRGActive
+              )
+            if all([x in str(response) for x in allInstancesActive]):
+              allInstancesRGActiveStatus = "RESOURCE GROUP (All Application Instances) ACTIVE: OK ✅"
+            else:
+              allInstancesRGActiveStatus = f"RESOURCE GROUP (All Application Instances) ACTIVE: ANOMALY DETECTED ❌ | THE INSTANCES IN THIS RESOURCE GROUP HAVE CHANGED."
+          except:
+            allInstancesRGActiveStatus = "RESOURCE GROUP (All Application Instances) ACTIVE: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE RESOURCE GROUP OR TARGETS."
+            
+            # ------------------ resource groups (All - Standby) ------------------
+          
+          try:
+            client = boto3.client('resource-groups', region_name = standbyRegion)
+            response = client.list_group_resources(
+              Group = allInstancesRGStandby
+              )
+            if all([x in str(response) for x in allInstancesStandby]):
+              allInstancesRGStandbyStatus = "RESOURCE GROUP (All Application Instances) STANDBY: OK ✅"
+            else:
+              allInstancesRGStandbyStatus = "RESOURCE GROUP (All Application Instances) STANDBY: ANOMALY DETECTED ❌ | THE INSTANCES IN THIS RESOURCE GROUP HAVE CHANGED."
+          except:
+            allInstancesRGStandbyStatus = "RESOURCE GROUP (All Application Instances) STANDBY: ANOMALY DETECTED ❌ | UNABLE TO VALIDATE RESOURCE GROUP OR TARGETS."
+          
+            # ------------------ backup / restore ------------------   
+
+          boto_sts=boto3.client('sts')
+          backupRestoreInstance = 'i-123456789'
+          checkForBackupRestoreAssID = '[ASSOCIATION_ID_HERE]'
+          
+          #assuming role in central-it
+          stsresponse = boto_sts.assume_role(
+            RoleArn="arn:aws:iam::AWSAccountNumber:role/FAILOVER_ROLE",
+            RoleSessionName='triggercheckForBackupRestoreAssociation'
+          )
+          
+          newsession_id = stsresponse["Credentials"]["AccessKeyId"]
+          newsession_key = stsresponse["Credentials"]["SecretAccessKey"]
+          newsession_token = stsresponse["Credentials"]["SessionToken"]
+
+          client = boto3.client(service_name='ssm',region_name='us-east-1',aws_access_key_id=newsession_id,aws_secret_access_key=newsession_key,aws_session_token=newsession_token)
+          response = client.start_associations_once(
+            AssociationIds=[checkForBackupRestoreAssID]
+            )
+            
+          time.sleep(20)
+          
+          #getting and parsing command ID
+          getCommandId = client.list_command_invocations(
+            InstanceId=backupRestoreInstance,
+            Filters=[
+                {
+                  'key': 'InvokedAfter',
+                  'value': current_datetime
+                }
+              ],
+            )
+            
+          try:
+            command_ID = getCommandId["CommandInvocations"][0]["CommandId"]
+            
+            #getting and parsing association output from instance
+            associationOutput = client.get_command_invocation(
+              CommandId=command_ID,
+              InstanceId=backupRestoreInstance,
+            )
+            parseAssociationOutput = re.search(r", 'StandardOutputContent': '(.*)', 'StandardOutputUrl':", str(associationOutput))
+            remote_script_result = str(parseAssociationOutput.group(1)).replace("\\n","")
+            backupRestoreStatus = f"BACKUP/RESTORE: {remote_script_result}"
+            if "OK" in backupRestoreStatus:
+              backupRestoreStatus += " ✅"
+            else:
+              backupRestoreStatus += " ❌"
+            
+          except:
+            backupRestoreStatus = "BACKUP/RESTORE: ANOMALY DETECTED ❌| UNABLE TO VALIDATE OUTPUT FROM THE ASSOCIATION."
+          
+            # ------------------ print results ------------------  
+
+          print(backupRestoreStatus)
+          print(secretsManagerStatus)
+          print(docDBStatusActive)
+          print(docDBStatusStandby)
+          print(lambdaStatusActive)
+          print(lambdaStatusStandby)
+          print(dbValueStatusActive)
+          print(dbValueStatusStandby)
+          print(activeLBListenerStatus)
+          print(activeLBListenerPortStatus)
+          print(standbyLBListenerStatus)
+          print(standbyLBListenerPortStatus)
+          print(restartServicesAssActiveStatus)
+          print(restartServicesAssActiveLastRun)
+          print(restartServicesAssStandbyStatus)
+          print(restartServicesAssStandbyLastRun)
+          print(restartAllServicesAssActiveStatus)
+          print(restartAllServicesAssActiveLastRun)
+          print(restartAllServicesAssStandbyStatus)
+          print(restartAllServicesAssStandbyLastRun)
+          print(stopServicesNewStandbyAssActiveStatus)
+          print(stopServicesNewStandbyAssActiveLastRun)
+          print(stopServicesNewStandbyAssStandbyStatus)
+          print(stopServicesNewStandbyAssStandbyLastRun)
+          print(clusterActiveStatus)
+          print(clusterStandbyStatus)
+          print(ECSServiceActiveStatus)
+          print(ECSServiceStandbyStatus)
+          print(specificRGActiveStatus)
+          print(specificRGStandbyStatus)
+          print(allInstancesRGActiveStatus)
+          print(allInstancesRGStandbyStatus)
+          print("\n")
+          
+          # ------------------ post to slack ------------------  
+          
+          Intro = print_time + "\n" + print_regions + "\n" + backupRestoreStatus + "\n" + secretsManagerStatus + "\n" 
+          docDB = docDBStatusActive + "\n"  + docDBStatusStandby + "\n"  + dbValueStatusActive + "\n"  + dbValueStatusStandby + "\n" 
+          lambdas = lambdaStatusActive + "\n"  + lambdaStatusStandby + "\n" 
+          loadBalancers = activeLBListenerStatus + "\n"  + activeLBListenerPortStatus + "\n"  + standbyLBListenerStatus + "\n"  + standbyLBListenerPortStatus + "\n" 
+          RMCassociations = restartServicesAssActiveStatus + "\n"  + restartServicesAssActiveLastRun + "\n"  + restartServicesAssStandbyStatus + "\n"  + restartServicesAssStandbyLastRun + "\n" 
+          RAOassociations = restartAllServicesAssActiveStatus + "\n"  + restartAllServicesAssActiveLastRun + "\n"  + restartAllServicesAssStandbyStatus + "\n"  + restartAllServicesAssStandbyLastRun + "\n" 
+          ECSinfra = clusterActiveStatus + "\n" + clusterStandbyStatus + "\n" + ECSServiceActiveStatus + "\n" + ECSServiceStandbyStatus + "\n" 
+          SOSNSassociations = stopServicesNewStandbyAssActiveStatus + "\n"  + stopServicesNewStandbyAssActiveLastRun + "\n"  + stopServicesNewStandbyAssStandbyStatus + "\n"  + stopServicesNewStandbyAssStandbyLastRun + "\n" 
+          resourceGroups = specificRGActiveStatus + "\n"  + specificRGStandbyStatus + "\n"  + allInstancesRGActiveStatus + "\n"  + allInstancesRGStandbyStatus + "\n" 
+          
+          
+          slack = event['SlackChannel'] #'alerts-testing' 
+          snsclient = boto3.client('sns')
+          snsArn = 'arn:aws:sns:us-east-1:AWSAccountNumber:FAILOVER_NOTIF'
+          message = Intro + docDB + lambdas + loadBalancers + RMCassociations + RAOassociations + ECSinfra + SOSNSassociations + resourceGroups + "\n\n🔔 REMEMBER TO SEND OUT THE CUSTOMER COMMUNICATION BEFORE TRIGGERING THE ACTUAL FAILOVER! 🔔\n\n"
+
+          try:
+            response = snsclient.publish(
+              TopicArn = snsArn,
+              Message = message,
+              MessageAttributes={
+                'Channel': {
+                  'DataType': 'String',
+                  'StringValue': slack
+                }
+              },
+              Subject = "QA FAILOVER PRE-FLIGHT CHECK RESULTS."
+            )
+          except:
+            print("UNABLE TO POST TO SLACK.")
+      InputPayload:
+        SlackChannel: '{{SlackChannel}}'
+    description: Checks genericServiceName infrastructure. Posts results to the specified slack channel in parameters.
