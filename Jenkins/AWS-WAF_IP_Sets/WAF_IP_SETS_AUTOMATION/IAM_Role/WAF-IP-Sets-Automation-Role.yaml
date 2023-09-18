@@ -1,0 +1,86 @@
+# -------------------------------------
+# Creator:
+# Aaleem Siddiqui, 2023, aaleemsiddiqui@gmail.com
+# -------------------------------------
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: "This Cloudformation template will create an IAM Role that allows for specified permissions to WAF for the automation"
+
+# ------------------------------------- Parameters -------------------------------------
+
+Parameters:
+  #Name of the IAM role
+  RoleName:
+    Type: String
+    Default: "WAF-IP-Sets-Automation-Role"
+    Description: "Name of the IAM role, do not change."
+
+  #AWS account number provided where the Jenkins nodes reside 
+  AWSAutomationAccountNumber:
+    Type: String
+    Default: "12345678910"
+    Description: "AWS account number provided where the Jenkins nodes reside"
+
+# ------------------------------------- Resources -------------------------------------
+
+Resources:
+  #WAF Automation IAM role
+  WAFAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: AWS
+          Effect: Allow
+          Principal:
+            Service:
+            - config.amazonaws.com
+            - ec2.amazonaws.com
+          Action: sts:AssumeRole
+        - Sid: TRUST
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub "arn:aws:iam::${AWSAutomationAccountNumber}:root"
+          Action: sts:AssumeRole
+          Condition:
+            StringLike:
+              aws:PrincipalArn:
+                - !Sub arn:aws:iam::${AWSAutomationAccountNumber}:role/JenkinsAutomationRole
+                - !Sub arn:aws:sts::${AWSAutomationAccountNumber}:assumed-role/*
+
+  # ------------------------------------- Policies -------------------------------------
+  #IAM policy attached to the WAF Automation IAM role
+
+      Policies:
+      - PolicyName: WAF-Access-Policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Sid: WAF
+            Effect: Allow
+            Resource: '*'
+            Action:
+            - 'wafv2:List*'
+            - 'wafv2:Get*'
+            - 'wafv2:UpdateIPSet'
+
+  # --------------------------------------------------------------------------
+  #IAM policy attached to the WAF Automation IAM role
+
+      - PolicyName: S3-Backend-Policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Sid: S3
+            Effect: Allow
+            Resource: '*'
+            Action:
+            - 's3:ListBucket'
+            - 's3:GetBucketVersioning'
+            - 's3:CreateBucket'
+            - 's3:PutObject'
+            - 's3:GetObject'
+
+      RoleName: !Ref RoleName
