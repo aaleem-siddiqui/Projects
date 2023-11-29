@@ -1,4 +1,4 @@
-# IOKeyOnboardingAutomation
+# IoTDeviceReonboardingAutomation
 **JIRA:** [OPS-259](google.com) <br />
 **CREATED BY:** AALEEM SIDDIQUI
 
