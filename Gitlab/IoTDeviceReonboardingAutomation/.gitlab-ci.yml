@@ -1,0 +1,64 @@
+# PROJECT_NAME: IoTGatewayDeviceOnboardingAutomation
+# CREATED BY: AALEEM SIDDIQUI
+# DESCRIPTION: Automates the process of re-activating an IoT gateway device.
+# -------------------------------------
+
+image: busybox:latest
+
+stages:
+  - Factory-Reset
+  - Delete-From-Kubernetes
+  - Delete-From-Instance
+  - Re-Onboard
+
+# -------------------------------------
+
+variables:
+  IMEI: 
+    value: ""
+    description: "The IMEI of the device."
+  ICCID:
+    value: ""
+    description: "ICCID."
+  CLUSTER_NAME:
+    value: "cluster1"
+    description: "The name of the Cluster."
+    options:
+      - "cluster1"
+      - "cluster2"
+      - "cluster3"
+  INSTANCE_NAME:
+    value: ""
+    description: "The name of the Instance."
+  NEW_INSTANCE_NAME:
+    value: ""
+    description: "The name of the NEW Instance. Leave this value empty if you are re-onboarding into the same Instance."
+
+# -------------------------------------
+
+Factory_reset:
+  stage: Factory-Reset
+  script:
+    - /bin/bash factory_reset.sh -i $IMEI
+  artifacts:
+    reports:
+      dotenv: deploy.env
+
+Delete_from_Kubernetes:
+  stage: Delete-From-Kubernetes
+  dependencies:
+    - Factory_reset
+  script:
+    - /bin/bash delete_from_Kubernetes.sh -t $TOKEN -d $DEVICE_ID
+
+Delete_from_Instance:
+  stage: Delete-From-Instance
+  script: 
+    - /bin/bash delete_from_Instance.sh -i $IMEI -c $CLUSTER_NAME -n $INSTANCE_NAME
+
+Re-Onboard_IoT_device:
+  stage: Re-Onboard
+  dependencies:
+    - Factory_reset
+  script:
+    - /bin/bash reonboard.sh -i $IMEI -z $ICCID -t $TOKEN -c $CLUSTER_NAME -n $INSTANCE_NAME -v $NEW_INSTANCE_NAME
