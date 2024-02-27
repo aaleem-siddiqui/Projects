@@ -1,0 +1,79 @@
+# PROJECT_NAME: userAdminTool
+# CREATED BY: AALEEM SIDDIQUI
+# DESCRIPTION: This pipeline performs multiple operations relating to user administration
+# -------------------------------------
+
+image: busybox:latest
+
+stages:
+  - userAdminTool
+
+# -------------------------------------
+
+variables:
+  JOB_TYPE:
+    value: "-"
+    description: "Choose job type."
+    options:
+      - "-"
+      - "Create Single-tenant User"
+      - "Create Multi-tenant User"
+      - "Delete User"
+      - "Generate Initial Sign-up Link"
+      - "Patch Password"
+  CLUSTER_NAME:
+    value: "load-w-eu"
+    description: "The name of the Cluster."
+    options:
+      - "load-w-eu"
+      - "w-eu"
+      - "c-us"
+      - "e-us"
+  USER_EMAIL: 
+    value: ""
+    description: "The e-mail address tied to the user. Example: aaleemsiddiqui@gmail.com"
+  ROOT_TENANT: 
+    value: ""
+    description: "The Tenant name the user will be added to, removed from, or modified in. Example: tenant3"
+  EXISTING_TENANTS: 
+    value: ""
+    description: "(For Multi-tenant User only) | List of existing Tenant names for the user. Example: tenant1,tenant2,etc..."
+  FIRST_NAME:
+    value: ""
+    description: "(For Single-tenant User only) | First name of the user."
+  LAST_NAME:
+    value: ""
+    description: "(For Single-tenant User only) | Last name of the user."
+  PASSWORD:
+    value: ""
+    description: "(For Single-tenant User & Patch Password only) | OPTIONAL: Will default to 'LetsGo#123' if left empty."
+  GROUP_ASSIGNMENT:
+    value: "Administrator"
+    description: "(For Creating Users only) | The permission level of the user within the new tenant."
+    options:
+      - "Administrator"
+      - "User"
+      - "Visitor"
+
+# -------------------------------------
+
+userAdminTool:
+  stage: userAdminTool
+  script:
+    - |
+      if [[ $PASSWORD = '' ]]; then
+        PASSWORD='-'
+      fi
+      if [[ ${JOB_TYPE} = "Create Multi-tenant User" ]]; then
+        /bin/bash scripts/createMultiTenantUser.sh -t ${EXISTING_TENANTS} -n ${ROOT_TENANT} -e ${USER_EMAIL} -c ${CLUSTER_NAME} -g ${GROUP_ASSIGNMENT} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET -z $USERADMINTOOL_AUTH_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "Create Single-tenant User" ]]; then
+        /bin/bash scripts/createSingleTenantUser.sh -n ${ROOT_TENANT} -e ${USER_EMAIL} -f ${FIRST_NAME} -l ${LAST_NAME} -c ${CLUSTER_NAME} -g ${GROUP_ASSIGNMENT} -p ${PASSWORD} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET -z $USERADMINTOOL_AUTH_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "Delete User" ]]; then
+        /bin/bash scripts/deleteUser.sh -n ${ROOT_TENANT} -e ${USER_EMAIL} -c ${CLUSTER_NAME} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "Generate Initial Sign-up Link" ]]; then
+        /bin/bash scripts/generate_signup_link.sh -e ${USER_EMAIL} -t ${ROOT_TENANT} -c ${CLUSTER_NAME} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET -z $USERADMINTOOL_AUTH_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "Patch Password" ]]; then
+        /bin/bash scripts/patchPassword.sh -n ${ROOT_TENANT} -e ${USER_EMAIL} -c ${CLUSTER_NAME} -p ${PASSWORD} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET -z $USERADMINTOOL_AUTH_TOKEN_SECRET
+      else
+        echo -e "\n\nERROR:\nINVALID JOB TYPE. PLEASE CHOOSE A JOB TYPE IN VARIABLES WHEN RUNNING THE PIPELINE.\n\n"
+      fi
