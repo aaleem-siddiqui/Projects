@@ -105,8 +105,8 @@ echo -e "RETRIEVING USER IDENTITY ID FOR ${YELLOW}${USER_EMAIL}${NC}..."
 GET_USER_IDENTITY_ID=$(curl -s --location "https://${CLUSTER_NAME}.softwareName.companyName/api/Users/" \
 --header "Authorization: Bearer $ADMIN_TOKEN")
 
-USER_IDENTITY_ID=$(echo ${GET_USER_IDENTITY_ID} | grep -oEi ".{0,10}${USER_EMAIL}.{0,375}" | grep -oP '"identityId"\s*:\s*"\K[^"]*')
-USER_ID=$(echo ${GET_USER_IDENTITY_ID} | grep -oEi ".{0,150}${USER_EMAIL}.{0,50}" | grep -oP '"id"\s*:\s*"\K[^"]*')
+USER_IDENTITY_ID=$(echo ${GET_USER_IDENTITY_ID} | grep -oEi ".{0,10}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,375}" | grep -oP '"identityId"\s*:\s*"\K[^"]*')
+USER_ID=$(echo ${GET_USER_IDENTITY_ID} | grep -oEi ".{0,150}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,50}" | grep -oP '"id"\s*:\s*"\K[^"]*')
 
 if [[ $USER_IDENTITY_ID == "" ]]; 
 then
@@ -248,7 +248,7 @@ fi
 GET_USER_INFO_FROM_TENANT=$(curl -s --location "https://${CLUSTER_NAME}.softwareName.companyName/api/Users/" \
 --header "Authorization: Bearer ${NEW_ADMIN_TOKEN}")
 
-USER_ID_ROOT_TENANT=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,150}${USER_EMAIL}.{0,50}" | grep -oP '"id"\s*:\s*"\K[^"]*')
+USER_ID_ROOT_TENANT=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,150}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,50}" | grep -oP '"id"\s*:\s*"\K[^"]*')
 if [[ $USER_ID_ROOT_TENANT == "" ]];
 then
     echo -e "${RED}FAILED TO GET USER ID.${NC}"
@@ -295,7 +295,7 @@ GET_USER_INFO_FROM_TENANT=$(curl -s --location "https://${CLUSTER_NAME}.software
 --header "Authorization: Bearer ${NEW_ADMIN_TOKEN}")
 
 echo -e "VALIDATING SUCCESS..."
-GET_GROUPS=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,10}${USER_EMAIL}.{0,300}" | grep -oP '"groups"\s*:\s*\[\K[^]]*')
+GET_GROUPS=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,10}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,300}" | grep -oP '"groups"\s*:\s*\[\K[^]]*')
 if echo $GET_GROUPS | grep -q "${GROUP_ASSIGNMENT}";
 then
     echo -e "${GREEN}SUCCESS!${NC} GROUP ASSIGNMENT UPDATED!"

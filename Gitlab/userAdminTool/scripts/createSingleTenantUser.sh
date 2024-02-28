@@ -156,7 +156,7 @@ fi
 GET_USER_INFO_FROM_TENANT=$(curl -s --location "https://${CLUSTER_NAME}.softwareName.companyName/api/Users/" \
 --header "Authorization: Bearer ${ADMIN_TOKEN}")
 
-USER_ID=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,150}${USER_EMAIL}.{0,50}" | grep -oP '"id"\s*:\s*"\K[^"]*')
+USER_ID=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,150}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,50}" | grep -oP '"id"\s*:\s*"\K[^"]*')
 if [[ $USER_ID == "" ]];
 then
     echo -e "${RED}FAILED TO GET USER ID.${NC}"
@@ -203,7 +203,7 @@ GET_USER_INFO_FROM_TENANT=$(curl -s --location "https://${CLUSTER_NAME}.software
 --header "Authorization: Bearer ${ADMIN_TOKEN}")
 
 echo -e "VALIDATING SUCCESS..."
-GET_GROUPS=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,10}${USER_EMAIL}.{0,300}" | grep -oP '"groups"\s*:\s*\[\K[^]]*')
+GET_GROUPS=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,10}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,300}" | grep -oP '"groups"\s*:\s*\[\K[^]]*')
 if echo $GET_GROUPS | grep -q "${GROUP_ASSIGNMENT}";
 then
     echo -e "${GREEN}SUCCESS!${NC} GROUP ASSIGNMENT UPDATED!"
@@ -252,7 +252,7 @@ while true; do
 
     echo -e "PATCHING PASSWORD..."
 
-    USER_IDENTITY_ID=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,100}${USER_EMAIL}.{0,300}" | grep -oP '"identityId"\s*:\s*"\K[^"]*')
+    USER_IDENTITY_ID=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,100}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,300}" | grep -oP '"identityId"\s*:\s*"\K[^"]*')
     PATCH_PASSWORD=$(curl -s -w "%{http_code}" --location --request PATCH "https://${CLUSTER_NAME}.softwareName.companyName/softwareNameapi/Identities/${USER_IDENTITY_ID}/UpdatePassword" \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $AUTH_TOKEN" \

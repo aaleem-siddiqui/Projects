@@ -99,7 +99,7 @@ fi
 GET_USER_INFO_FROM_TENANT=$(curl -s --location "https://${CLUSTER_NAME}.softwareName.companyName/api/Users/" \
 --header "Authorization: Bearer ${ADMIN_TOKEN}")
 
-USER_IDENTITY_ID=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,100}${USER_EMAIL}.{0,300}" | grep -oP '"identityId"\s*:\s*"\K[^"]*')
+USER_IDENTITY_ID=$(echo ${GET_USER_INFO_FROM_TENANT} | grep -oEi ".{0,100}$(sed 's/[^a-zA-Z0-9]/\\&/g' <<< "${USER_EMAIL}").{0,300}" | grep -oP '"identityId"\s*:\s*"\K[^"]*')
 if [[ $USER_IDENTITY_ID == "" ]];
 then
     echo -e "${RED}FAILED TO GET USER ID.${NC}"
