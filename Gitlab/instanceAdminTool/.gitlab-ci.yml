@@ -1,0 +1,66 @@
+# PROJECT_NAME: instanceAdminTool
+# DESCRIPTION: This pipeline performs multiple operations relating to instance administration
+# -------------------------------------
+
+image: busybox:latest
+
+stages:
+  - InstanceAdminTool
+
+# -------------------------------------
+
+variables:
+  JOB_TYPE:
+    value: "-"
+    description: "Choose job type."
+    options:
+      - "-"
+      - "List All Instances"
+      - "List Users in Instance"
+      - "Delete Instance"
+      - "Create Instance"
+  ROOT_INSTANCES: 
+    value: ""
+    description: "List of Instance names you would like to delete, create, or list users in. Example: Instance1,Instance2,etc..."
+  CLUSTER_NAME:
+    value: "w-eu"
+    description: "The name of the Cluster."
+    options:
+      - "w-eu"
+      - "c-us"
+      - "e-us"
+  USER_EMAIL: 
+    value: ""
+    description: "(For Creating Instances only) | The e-mail address tied to the initial admin user."
+  ACTIVATION_ID: 
+    value: ""
+    description: "(For Creating Instances only) | The activation ID of the cloud LAC. Please remember to fill in the system ID field during the LAC creation"
+
+
+# -------------------------------------
+
+InstanceAdminTool:
+  stage: InstanceAdminTool
+  script:
+    - |
+      if [[ ${CLUSTER_NAME} = "load-w-eu" || ${CLUSTER_NAME} = "pqa-stage-w-eu" ]]; then
+        ADMIN_TOKEN_SECRET="${INSTANCEADMINTOOL_CLIENT_SECRET_NON_PROD}"
+      elif [[ ${CLUSTER_NAME} = "w-eu" ]]; then
+        ADMIN_TOKEN_SECRET="${INSTANCEADMINTOOL_CLIENT_SECRET_W_EU}"
+      elif [[ ${CLUSTER_NAME} = "c-us" ]]; then
+        ADMIN_TOKEN_SECRET="${INSTANCEADMINTOOL_CLIENT_SECRET_C_US}"
+      elif [[ ${CLUSTER_NAME} = "e-us" ]]; then
+        ADMIN_TOKEN_SECRET="${INSTANCEADMINTOOL_CLIENT_SECRET_E_US}"
+      fi
+
+      if [[ ${JOB_TYPE} = "List All Instances" ]]; then
+        /bin/bash scripts/listAllInstances.sh -c "$CLUSTER_NAME" -y $ADMIN_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "List Users in Instance" ]]; then
+        /bin/bash scripts/listUsersInInstance.sh -c "$CLUSTER_NAME" -n "$ROOT_INSTANCES" -y $ADMIN_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "Delete Instance" ]]; then
+        /bin/bash scripts/deleteInstance_2.0.sh -c "$CLUSTER_NAME" -n "$ROOT_INSTANCES" -y $ADMIN_TOKEN_SECRET -a $InstanceADMINTOOL_ADMIN_TOKEN_SECRET_MOON -b $InstanceADMINTOOL_ADMIN_TOKEN_CLIENTID_MOON
+      elif [[ ${JOB_TYPE} = "Create Instance" ]]; then
+        /bin/bash scripts/createInstance.sh -c $CLUSTER_NAME -n $ROOT_INSTANCES -y $ADMIN_TOKEN_SECRET -x $InstanceADMINTOOL_ENTITLEMENT_TOKEN_SECRET -b $InstanceADMINTOOL_AUTH_SECRET_NON_PROD -d $ACTIVATION_ID -s $USER_EMAIL
+      else
+        echo -e "\n\nERROR:\nINVALID JOB TYPE. PLEASE CHOOSE A JOB TYPE IN VARIABLES WHEN RUNNING THE PIPELINE.\n\n"
+      fi
