@@ -6,6 +6,7 @@
 This pipeline performs multiple operations relating to user administration:
 - [Create a Single-Tenant User](https://www.atlassian.com/software/confluence)
 - [Create a Multi-Tenant User](https://www.atlassian.com/software/confluence)
+- [List all Tenants for User](https://www.atlassian.com/software/confluence)
 - [Delete a User from a Tenant](https://www.atlassian.com/software/confluence)
 - [Generate an Initial Sign-up Link for a User in a Tenant](https://www.atlassian.com/software/confluence)
 - [Update a Users Password](https://www.atlassian.com/software/confluence)
@@ -31,6 +32,9 @@ This pipeline performs multiple operations relating to user administration:
       - **ROOT_TENANT:** Provide the name of the new tenant that you would like to add this user to. 
       - **EXISTING_TENANTS:** Provide the names of the existing tenants that the user is associated with. **NOTE:** <u>IF YOU ARE MISSING A TENANT NAME THAT THE USER CURRENTLY HAS ACCESS TO, THEY WILL LOST THAT DURING PATCHING!</u>
       - **GROUP_ASSIGNMENT:** Provide the level of permissions that you would like to give the user in the new tenant.
+   - For listing all tenants for a user:
+      - **CLUSTER_NAME:** Provide the name of the Kuberneties Cluster.
+      - **USER_EMAIL:** Provide the users e-mail.
    - For deleting a user:
       - **CLUSTER_NAME:** Provide the name of the Kuberneties Cluster.
       - **USER_EMAIL:** Provide the users e-mail.
