@@ -1,7 +1,9 @@
 #!/bin/bash
-# CDOP-861 | Description: creates a recovery user in order to login to APPLICATION
-# USAGE: 
-# BACKEND: 
+###########################################
+# FILENAME: createRecoveryUser.ps1
+# DESCRIPTION: Creates a recovery user for a windows application that you are locked out of.
+###########################################
+
 
 # defining variables
 RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; PURPLE='\033[1;36m'; PINK='\033[1;35m'; PURPLE='\033[1;34m'; NC='\033[0m'
