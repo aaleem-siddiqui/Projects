@@ -4,8 +4,8 @@
 # DESCRIPTION: Creates a recovery user for a windows application that you are locked out of.
 ###########################################
 
+# defining variables + functions
 
-# defining variables
 RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; PURPLE='\033[1;36m'; PINK='\033[1;35m'; PURPLE='\033[1;34m'; NC='\033[0m'
 SERVICE_NAME="APPLICATIONOS"
 SOURCE_PATH="/c/Program Files/APPLICATION/os"
@@ -14,7 +14,6 @@ APPLICATION_URL="http://localhost:5000/shell/"
 FAILURE_COUNTER=0
 RETRY_LIMIT=5
 
-# function that gets the status of the application
 GET_SERVICE_STATUS() {
     sc queryex state= all | grep -i "$SERVICE_NAME" -B1 -A10 | grep -i "state"
 }
@@ -25,6 +24,10 @@ KILL_PID() {
         kill -9 "$PID_PROCESS"
     fi
 }
+
+# --------------------------------------------------------------------------------
+# navigate to script path + stop application OS
+
 
 echo -e "SCRIPT START.\nNAVIGATING TO SOURCE PATH..."
 cd "$SOURCE_PATH"
@@ -44,6 +47,9 @@ while true; do
     fi
 done
 
+# --------------------------------------------------------------------------------
+# kill any process using port 5000, run application single process and tail for credentials
+
 echo -e "RUNNING ($PURPLE./$PROCESS_NAME repair=True$NC) IN ORDER TO RETRIEVE RECOVERY CREDENTIALS\nPLEASE WAIT..."
 KILL_PID
 credentials=$(./Application.Suite.Services.SingleProcess.exe repair=True | awk '
@@ -57,6 +63,9 @@ if [[ -z $credentials ]]; then
 else
     echo -e "${GREEN}CREDENTIALS RETRIEVED!$NC"
 fi
+
+# --------------------------------------------------------------------------------
+# display formatted credentials and start application OS again
 
 FORMATTED_CREDENTIALS="$YELLOW------ Recovery user ------$NC\n$(echo "$credentials" | awk 'NR==1')\n$(echo "$credentials" | awk 'NR==2')\n$YELLOW---------------------------$NC"
 echo -e "$FORMATTED_CREDENTIALS"
