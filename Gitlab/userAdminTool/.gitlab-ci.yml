@@ -18,6 +18,7 @@ variables:
       - "-"
       - "Create Single-tenant User"
       - "Create Multi-tenant User"
+      - "List All Users In Cluster"
       - "List All Tenants For User"
       - "Delete User"
       - "Generate Initial Sign-up Link"
@@ -71,6 +72,8 @@ userAdminTool:
         /bin/bash scripts/createSingleTenantUser.sh -n ${ROOT_TENANT} -e ${USER_EMAIL} -f ${FIRST_NAME} -l ${LAST_NAME} -c ${CLUSTER_NAME} -g ${GROUP_ASSIGNMENT} -p ${PASSWORD} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET -z $USERADMINTOOL_AUTH_TOKEN_SECRET
       elif [[ ${JOB_TYPE} = "Delete User" ]]; then
         /bin/bash scripts/deleteUser.sh -n ${ROOT_TENANT} -e ${USER_EMAIL} -c ${CLUSTER_NAME} -y $USERADMINTOOL_ADMIN_TOKEN_SECRET
+      elif [[ ${JOB_TYPE} = "List All Users In Cluster" ]]; then
+        /bin/bash scripts/listAllUsersInCluster.sh -e -c "${CLUSTER_NAME}" -y $ADMIN_TOKEN_SECRET
       elif [[ ${JOB_TYPE} = "List All Tenants For User" ]]; then
         /bin/bash scripts/listAllTenantsForUser.sh -e "${USER_EMAIL}" -c "${CLUSTER_NAME}" -y $ADMIN_TOKEN_SECRET
       elif [[ ${JOB_TYPE} = "Generate Initial Sign-up Link" ]]; then
