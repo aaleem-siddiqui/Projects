@@ -1,0 +1,420 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "When_a_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "schemaId": {
+                                "type": "string"
+                            },
+                            "data": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "actions": {
+            "View_Alert_Full_Payload": {
+                "runAfter": {},
+                "type": "Compose",
+                "inputs": "@triggerBody()"
+            },
+            "Initialize_Alert_Variables": {
+                "runAfter": {},
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "alert-name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-description",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-condition",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-severity",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-type",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-metric",
+                            "type": "string"
+                        },
+                        {
+                            "name": "resource",
+                            "type": "string"
+                        },
+                        {
+                            "name": "resource-link",
+                            "type": "string"
+                        },
+                        {
+                            "name": "current-value",
+                            "type": "string"
+                        },
+                        {
+                            "name": "operator",
+                            "type": "string"
+                        },
+                        {
+                            "name": "threshold",
+                            "type": "string"
+                        },
+                        {
+                            "name": "search-query",
+                            "type": "string"
+                        },
+                        {
+                            "name": "query-result-count",
+                            "type": "string"
+                        },
+                        {
+                            "name": "link-to-filtered-search-results-ui",
+                            "type": "string"
+                        },
+                        {
+                            "name": "fired-time",
+                            "type": "string"
+                        },
+                        {
+                            "name": "resolved-time",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-body-teams",
+                            "type": "string"
+                        },
+                        {
+                            "name": "alert-body-pushover",
+                            "type": "string"
+                        }
+                    ]
+                }
+            },
+            "Initialize_Failure_Variables": {
+                "runAfter": {},
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "failure-reason",
+                            "type": "array"
+                        },
+                        {
+                            "name": "error-message",
+                            "type": "array"
+                        }
+                    ]
+                }
+            },
+            "Run_in_Parallel_Set_Variables": {
+                "actions": {
+                    "Set_alert-name": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-name",
+                            "value": "@{triggerBody()['data']['essentials']['alertRule']}"
+                        }
+                    },
+                    "Set_alert-description": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-description",
+                            "value": "@{triggerBody()['data']['essentials']['description']}"
+                        }
+                    },
+                    "Set_alert-condition": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-condition",
+                            "value": "@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), '🚨 FIRED 🚨', '✅ RESOLVED ✅')}"
+                        }
+                    },
+                    "Set_alert-severity": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-severity",
+                            "value": "@{triggerBody()['data']['essentials']['severity']}"
+                        }
+                    },
+                    "Set_alert-type": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-type",
+                            "value": "@{triggerBody()['data']['essentials']['signalType']}"
+                        }
+                    },
+                    "Set_resource": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "resource",
+                            "value": "@{join(coalesce(triggerBody()?['data']?['essentials']?['alertTargetIDs'], createArray()), ', ')}"
+                        }
+                    },
+                    "Set_resource-link": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "resource-link",
+                            "value": "https://portal.azure.com/#@/resource@{variables('resource')}"
+                        }
+                    },
+                    "Set_current-value": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "current-value",
+                            "value": "@{if(and(contains(triggerBody()['data']['alertContext'], 'condition'), contains(triggerBody()['data']['alertContext']['condition'], 'allOf'), contains(triggerBody()['data']['alertContext']['condition']['allOf'][0], 'metricValue')), triggerBody()['data']['alertContext']['condition']['allOf'][0]['metricValue'], 'null')}"
+                        }
+                    },
+                    "Set_operator": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "operator",
+                            "value": "@{if(and(contains(triggerBody()['data']['alertContext'], 'condition'), contains(triggerBody()['data']['alertContext']['condition'], 'allOf'), contains(triggerBody()['data']['alertContext']['condition']['allOf'][0], 'operator')), triggerBody()['data']['alertContext']['condition']['allOf'][0]['operator'], 'null')}"
+                        }
+                    },
+                    "Set_threshold": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "threshold",
+                            "value": "@{if(and(contains(triggerBody()['data']['alertContext'], 'condition'), contains(triggerBody()['data']['alertContext']['condition'], 'allOf'), contains(triggerBody()['data']['alertContext']['condition']['allOf'][0], 'threshold')), triggerBody()['data']['alertContext']['condition']['allOf'][0]['threshold'], 'null')}"
+                        }
+                    },
+                    "Set_search-query": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "search-query",
+                            "value": "@{coalesce(triggerBody()?['data']?['alertContext']?['SearchQuery'], triggerBody()?['data']?['alertContext']?['condition']?['allOf']?[0]?['searchQuery'], 'null')}"
+                        }
+                    },
+                    "Set_query-result-count": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "query-result-count",
+                            "value": "@{coalesce(string(triggerBody()?['data']?['alertContext']?['ResultCount']), string(triggerBody()?['data']?['alertContext']?['condition']?['allOf']?[0]?['metricValue']), 'null')}"
+                        }
+                    },
+                    "Set_link-to-filtered-search-results-ui": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "link-to-filtered-search-results-ui",
+                            "value": "@{coalesce(triggerBody()?['data']?['alertContext']?['LinkToFilteredSearchResultsUI'], triggerBody()?['data']?['alertContext']?['condition']?['allOf']?[0]?['linkToFilteredSearchResultsUI'], 'null')}"
+                        }
+                    },
+                    "Set_fired-time": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "fired-time",
+                            "value": "@{formatDateTime(triggerBody()['data']['essentials']['firedDateTime'], 'yyyy-MM-dd hh:mm:ss tt')} UTC"
+                        }
+                    },
+                    "Set_resolved-time": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "resolved-time",
+                            "value": "@{if(equals(contains(triggerBody()['data']['essentials'], 'resolvedDateTime'), true), concat(formatDateTime(triggerBody()['data']['essentials']['resolvedDateTime'], 'yyyy-MM-dd hh:mm:ss tt'), ' UTC'), 'TBD')}"
+                        }
+                    },
+                    "Set_alert-metric": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-metric",
+                            "value": "@{if(and(contains(triggerBody()['data']['alertContext'], 'condition'), contains(triggerBody()['data']['alertContext']['condition'], 'allOf'), contains(triggerBody()['data']['alertContext']['condition']['allOf'][0], 'metricName')), triggerBody()['data']['alertContext']['condition']['allOf'][0]['metricName'], 'null')}"
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Initialize_Alert_Variables": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Scope"
+            },
+            "Handle_Run_in_Parallel_Set_Variables_Failure": {
+                "actions": {
+                    "Set_failure_reason": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "failure-reason",
+                            "value": "@result('Run_in_Parallel_Set_Variables')"
+                        }
+                    },
+                    "Filter_array": {
+                        "runAfter": {
+                            "Set_failure_reason": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Query",
+                        "inputs": {
+                            "from": "@variables('failure-reason')",
+                            "where": "@equals(item()?['status'], 'Failed')\n"
+                        }
+                    },
+                    "Append_header_alert-body-pushover": {
+                        "type": "AppendToStringVariable",
+                        "inputs": {
+                            "name": "alert-body-pushover",
+                            "value": "The logic app triggered but failed to parse alert information. Navigate to the Logic app run history in order to view the full Alert payload. See error message below for further troubleshooting of the Logic app.\n\n"
+                        }
+                    },
+                    "Append_header_alert-body-teams": {
+                        "type": "AppendToStringVariable",
+                        "inputs": {
+                            "name": "alert-body-teams",
+                            "value": "@concat('<p><b><span style=\"font-size:20px; color:orange;\">', variables('alert-name'), '</span></b></p>\n<hr><p><b><i><span style=\"color:red;\">The logic app triggered but failed to parse alert information. Navigate to the Logic app run history in order to view the full Alert payload. See error message below for further troubleshooting of the Logic app.</span></i></b></p><hr>')"
+                        }
+                    },
+                    "For_each_filtered_failures": {
+                        "foreach": "@body('Filter_array')",
+                        "actions": {
+                            "Append_failed_alert-body-pushover": {
+                                "type": "AppendToStringVariable",
+                                "inputs": {
+                                    "name": "alert-body-pushover",
+                                    "value": "@concat('-----------------------------------------------------\n\nFunction Name: ', item()?['name'], '\nStatus: ', item()?['status'], '\nCode: ', item()?['code'], '\nMessage: ', item()?['error']?['message'], '\n\n')"
+                                }
+                            },
+                            "Append_failed_alert-body-teams": {
+                                "type": "AppendToStringVariable",
+                                "inputs": {
+                                    "name": "alert-body-teams",
+                                    "value": "@concat('<p><b>Function Name:</b> ', item()?['name'], '<br><b>Status:</b> ', item()?['status'], '<br><b>Code:</b> ', item()?['code'], '<br><b>Message:</b> ', replace(item()?['error']?['message'], '\n', '<br>'), '</p><br>')"
+                                }
+                            }
+                        },
+                        "runAfter": {
+                            "Filter_array": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Foreach"
+                    }
+                },
+                "runAfter": {
+                    "Run_in_Parallel_Set_Variables": [
+                        "Failed"
+                    ]
+                },
+                "type": "Scope"
+            },
+            "Run_in_Parallel_Set_Bodies": {
+                "actions": {
+"Set_alert-body-pushover": {
+    "type": "SetVariable",
+    "inputs": {
+        "name": "alert-body-pushover",
+        "value": "DESCRIPTION: @{variables('alert-description')}\nALERT CONDITION: @{variables('alert-condition')}\nSEVERITY: @{variables('alert-severity')}\n\nALERT TYPE: @{variables('alert-type')}\n@{if(or(equals(variables('search-query'), 'null'), equals(variables('search-query'), '')), '', concat('SEARCH QUERY: ', take(variables('search-query'), 100), '\n'))}@{if(or(equals(variables('query-result-count'), 'null'), equals(variables('query-result-count'), '')), '', concat('QUERY RESULT COUNT: ', variables('query-result-count'), '\n'))}@{if(equals(variables('alert-metric'), 'null'), '', concat('METRIC: ', variables('alert-metric'), '\n'))}@{if(equals(variables('current-value'), 'null'), '', concat('CURRENT VALUE: ', variables('current-value'), '\n'))}@{if(equals(variables('operator'), 'null'), '', concat('OPERATOR: ', variables('operator'), '\n'))}@{if(equals(variables('threshold'), 'null'), '', concat('THRESHOLD: ', variables('threshold'), '\n'))}\n\nRESOURCE(S) INVOLVED: @{variables('resource')}\nRESOURCE LINK: https://portal.azure.com/#/resource@{variables('resource')}\n\nFIRED TIME: @{variables('fired-time')}\nRESOLVED TIME: @{variables('resolved-time')}"
+    }
+},
+"Set_alert-body-teams": {
+    "type": "SetVariable",
+    "inputs": {
+        "name": "alert-body-teams",
+        "value": "<p><b><span style=\"font-size:20px; color:orange;\">@{variables('alert-name')}</span></b></p>\n<hr>\n<p><b>DESCRIPTION:</b> <i><span style=\"color:yellow; font-style:italic;\">@{variables('alert-description')}</span></i></p>\n<p><p><b>ALERT CONDITION: <span style=\"color:@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), 'red', 'green')}\">@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), '🚨 FIRED 🚨', '✅ RESOLVED ✅')}</span></b></p>\n<p><b>SEVERITY:</b> @{variables('alert-severity')}</p>\n<br><p><b>ALERT TYPE:</b> @{variables('alert-type')}</p>\n@{if(or(equals(variables('search-query'), 'null'), equals(variables('search-query'), '')), '', concat('<p><b>SEARCH QUERY:</b><i> ', take(variables('search-query'), 100), '</i></p>'))}@{if(or(equals(variables('query-result-count'), 'null'), equals(variables('query-result-count'), '')), '', concat('<p><b>QUERY RESULT COUNT:</b> ', variables('query-result-count'), '</p>'))}@{if(or(equals(variables('link-to-filtered-search-results-ui'), 'null'), equals(variables('link-to-filtered-search-results-ui'), '')), '', concat('<p><b>LOG LINK:</b> <a href=\"', variables('link-to-filtered-search-results-ui'), '\">View Logs</a></p>'))}\n@{if(equals(variables('alert-metric'), 'null'), '', concat('<p><b>METRIC:</b> ', variables('alert-metric'), '</p>'))}\n@{if(equals(variables('current-value'), 'null'), '', concat('<p><b>CURRENT VALUE:</b> ', variables('current-value'), '</p>'))}@{if(equals(variables('operator'), 'null'), '', concat('<p><b>OPERATOR:</b> ', variables('operator'), '</p>'))}@{if(equals(variables('threshold'), 'null'), '', concat('<p><b>THRESHOLD:</b> ', variables('threshold'), '</p>'))}\n<br><p><b>RESOURCE:</b> <a href=\"@{variables('resource-link')}\">@{variables('resource')}</a></p>\n<br><p><b>FIRED TIME:</b> @{variables('fired-time')}</p>\n<p><b>RESOLVED TIME:</b> @{variables('resolved-time')}</p>"
+    }
+}
+
+                },
+                "runAfter": {
+                    "Run_in_Parallel_Set_Variables": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Scope"
+            },
+            "Run_in_Parallel_Notifications": {
+                "actions": {
+                    "Send_to_Teams": {
+                        "type": "ApiConnection",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['teams-1']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "body": {
+                                "recipient": {
+                                    "groupId": "11111111-1111-1111-1111-1111111111",
+                                    "channelId": "19:11111111111111111111111111111@thread.tacv2"
+                                },
+                                "messageBody": "<p>@{variables('alert-body-teams')}</p><br>"
+                            },
+                            "path": "/beta/teams/conversation/message/poster/@{encodeURIComponent('User')}/location/@{encodeURIComponent('Channel')}"
+                        }
+                    },
+                    "Send_to_Pushover": {
+                        "type": "Http",
+                        "inputs": {
+                            "uri": "https://api.pushover.net/1/messages.json",
+                            "method": "POST",
+                            "headers": {
+                                "Content-Type": "application/json"
+                            },
+                            "body": {
+                                "token": "{{TOKEN}}",
+                                "user": "{{USER}}",
+                                "device": [
+                                    "firefox_dba",
+                                    "Firefox_CMA",
+                                    "Edge_CMA"
+                                ],
+                                "priority": 1,
+                                "title": "@{variables('alert-name')}",
+                                "message": "@{variables('alert-body-pushover')}",
+                                "retry": 30,
+                                "expire": 10800
+                            }
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Run_in_Parallel_Set_Bodies": [
+                        "Succeeded",
+                        "Skipped"
+                    ],
+                    "Handle_Run_in_Parallel_Set_Variables_Failure": [
+                        "Succeeded",
+                        "Skipped"
+                    ]
+                },
+                "type": "Scope"
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "teams-1": {
+                    "id": "/subscriptions/11111111-1111-1111-1111-1111111111/providers/Microsoft.Web/locations/westeurope/managedApis/teams",
+                    "connectionId": "/subscriptions/11111111-1111-1111-1111-1111111111/resourceGroups/rsg/providers/Microsoft.Web/connections/teams",
+                    "connectionName": "teams"
+                }
+            }
+        }
+    }
+}
