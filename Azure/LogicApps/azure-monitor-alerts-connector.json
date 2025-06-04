@@ -77,7 +77,7 @@
                             "type": "string"
                         },
                         {
-                            "name": "search-query",
+                            "name": "service-name",
                             "type": "string"
                         },
                         {
@@ -89,13 +89,25 @@
                             "type": "string"
                         },
                         {
+                            "name": "shortened-url",
+                            "type": "string"
+                        },
+                        {
                             "name": "fired-time",
                             "type": "string"
                         },
                         {
                             "name": "resolved-time",
                             "type": "string"
-                        },
+                        }
+                    ]
+                }
+            },
+            "Initialize_Notification_Variables": {
+                "runAfter": {},
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
                         {
                             "name": "alert-body-teams",
                             "type": "string"
@@ -103,7 +115,55 @@
                         {
                             "name": "alert-body-pushover",
                             "type": "string"
-                        }
+                        },                        
+                        {
+                            "name": "pushover-token-default",
+                            "type": "string"
+                        },
+                        {
+                            "name": "pushover-token-e",
+                            "type": "string"
+                        },
+                        {
+                            "name": "pushover-token",
+                            "type": "string"
+                        },                        
+                        {
+                            "name": "pushover-user-group-default",
+                            "type": "string"
+                        },
+                        {
+                            "name": "pushover-user-group-e",
+                            "type": "string"
+                        },                                                
+                        {
+                            "name": "pushover-user-group",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teams-group-id-default",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teams-group-id-e",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teams-group-id",
+                            "type": "string"
+                        },                        
+                        {
+                            "name": "teams-channel-id-default",
+                            "type": "string"
+                        },
+                        {
+                            "name": "teams-channel-id-e",
+                            "type": "string"
+                        },              
+                        {
+                            "name": "teams-channel-id",
+                            "type": "string"
+                        }                     
                     ]
                 }
             },
@@ -122,6 +182,72 @@
                         }
                     ]
                 }
+            },
+            "Run_in_Parallel_Set_Hardcoded_Variables": {
+                "actions": {
+                    "Set_pushover-token-e": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "pushover-token-e",
+                        "value": "{VALUE}"
+                        }
+                    },
+                    "Set_pushover-token-default": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "pushover-token-default",
+                        "value": "{VALUE}"
+                        }
+                    },
+                    "Set_pushover-user-group-default": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "pushover-user-group-default",
+                        "value": "{VALUE}"
+                        }
+                    },
+                    "Set_pushover-user-group-e": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "pushover-user-group-e",
+                        "value": "{VALUE}"
+                        }
+                    },                                        
+                    "Set_teams-group-id-default": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "teams-group-id-default",
+                            "value": "{VALUE}"
+                        }
+                    },
+                    "Set_teams-channel-id-default": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "teams-channel-id-default",
+                            "value": "{VALUE}"
+                        }
+                    },
+                    "Set_teams-group-id-e": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "teams-group-id-e",
+                            "value": "{VALUE}"
+                        }
+                    },
+                    "Set_teams-channel-id-e": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "teams-channel-id-e",
+                            "value": "{VALUE}"
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Initialize_Alert_Variables": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Scope"
             },
             "Run_in_Parallel_Set_Variables": {
                 "actions": {
@@ -195,11 +321,11 @@
                             "value": "@{if(and(contains(triggerBody()['data']['alertContext'], 'condition'), contains(triggerBody()['data']['alertContext']['condition'], 'allOf'), contains(triggerBody()['data']['alertContext']['condition']['allOf'][0], 'threshold')), triggerBody()['data']['alertContext']['condition']['allOf'][0]['threshold'], 'null')}"
                         }
                     },
-                    "Set_search-query": {
+                    "Set_service-name": {
                         "type": "SetVariable",
                         "inputs": {
-                            "name": "search-query",
-                            "value": "@{coalesce(triggerBody()?['data']?['alertContext']?['SearchQuery'], triggerBody()?['data']?['alertContext']?['condition']?['allOf']?[0]?['searchQuery'], 'null')}"
+                            "name": "service-name",
+                            "value": "@{coalesce(triggerBody()?['data']?['alertContext']?['SearchResults']?['tables']?[0]?['rows']?[0]?[14], 'null')}"
                         }
                     },
                     "Set_query-result-count": {
@@ -239,11 +365,35 @@
                     }
                 },
                 "runAfter": {
-                    "Initialize_Alert_Variables": [
+                    "Run_in_Parallel_Set_Hardcoded_Variables": [
                         "Succeeded"
                     ]
                 },
                 "type": "Scope"
+            },
+            "TinyURL_Shortener": {
+                "runAfter": {
+                    "Run_in_Parallel_Set_Variables": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Http",
+                "inputs": {
+                    "uri": "@{concat('https://tinyurl.com/api-create.php?url=', encodeURIComponent(variables('link-to-filtered-search-results-ui')))}",
+                    "method": "GET"
+                }
+            },
+            "Set_shortened-url": {
+                "runAfter": {
+                    "TinyURL_Shortener": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "SetVariable",
+                "inputs": {
+                    "name": "shortened-url",
+                    "value": "@{body('TinyURL_Shortener')}"
+                }
             },
             "Handle_Run_in_Parallel_Set_Variables_Failure": {
                 "actions": {
@@ -309,31 +459,82 @@
                 "runAfter": {
                     "Run_in_Parallel_Set_Variables": [
                         "Failed"
+                    ],
+                    "Set_shortened-url": [
+                        "Succeeded",
+                        "Failed"
                     ]
                 },
                 "type": "Scope"
             },
             "Run_in_Parallel_Set_Bodies": {
                 "actions": {
-"Set_alert-body-pushover": {
-    "type": "SetVariable",
-    "inputs": {
-        "name": "alert-body-pushover",
-        "value": "DESCRIPTION: @{variables('alert-description')}\nALERT CONDITION: @{variables('alert-condition')}\nSEVERITY: @{variables('alert-severity')}\n\nALERT TYPE: @{variables('alert-type')}\n@{if(or(equals(variables('search-query'), 'null'), equals(variables('search-query'), '')), '', concat('SEARCH QUERY: ', take(variables('search-query'), 100), '\n'))}@{if(or(equals(variables('query-result-count'), 'null'), equals(variables('query-result-count'), '')), '', concat('QUERY RESULT COUNT: ', variables('query-result-count'), '\n'))}@{if(equals(variables('alert-metric'), 'null'), '', concat('METRIC: ', variables('alert-metric'), '\n'))}@{if(equals(variables('current-value'), 'null'), '', concat('CURRENT VALUE: ', variables('current-value'), '\n'))}@{if(equals(variables('operator'), 'null'), '', concat('OPERATOR: ', variables('operator'), '\n'))}@{if(equals(variables('threshold'), 'null'), '', concat('THRESHOLD: ', variables('threshold'), '\n'))}\n\nRESOURCE(S) INVOLVED: @{variables('resource')}\nRESOURCE LINK: https://portal.azure.com/#/resource@{variables('resource')}\n\nFIRED TIME: @{variables('fired-time')}\nRESOLVED TIME: @{variables('resolved-time')}"
-    }
-},
-"Set_alert-body-teams": {
-    "type": "SetVariable",
-    "inputs": {
-        "name": "alert-body-teams",
-        "value": "<p><b><span style=\"font-size:20px; color:orange;\">@{variables('alert-name')}</span></b></p>\n<hr>\n<p><b>DESCRIPTION:</b> <i><span style=\"color:yellow; font-style:italic;\">@{variables('alert-description')}</span></i></p>\n<p><p><b>ALERT CONDITION: <span style=\"color:@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), 'red', 'green')}\">@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), '🚨 FIRED 🚨', '✅ RESOLVED ✅')}</span></b></p>\n<p><b>SEVERITY:</b> @{variables('alert-severity')}</p>\n<br><p><b>ALERT TYPE:</b> @{variables('alert-type')}</p>\n@{if(or(equals(variables('search-query'), 'null'), equals(variables('search-query'), '')), '', concat('<p><b>SEARCH QUERY:</b><i> ', take(variables('search-query'), 100), '</i></p>'))}@{if(or(equals(variables('query-result-count'), 'null'), equals(variables('query-result-count'), '')), '', concat('<p><b>QUERY RESULT COUNT:</b> ', variables('query-result-count'), '</p>'))}@{if(or(equals(variables('link-to-filtered-search-results-ui'), 'null'), equals(variables('link-to-filtered-search-results-ui'), '')), '', concat('<p><b>LOG LINK:</b> <a href=\"', variables('link-to-filtered-search-results-ui'), '\">View Logs</a></p>'))}\n@{if(equals(variables('alert-metric'), 'null'), '', concat('<p><b>METRIC:</b> ', variables('alert-metric'), '</p>'))}\n@{if(equals(variables('current-value'), 'null'), '', concat('<p><b>CURRENT VALUE:</b> ', variables('current-value'), '</p>'))}@{if(equals(variables('operator'), 'null'), '', concat('<p><b>OPERATOR:</b> ', variables('operator'), '</p>'))}@{if(equals(variables('threshold'), 'null'), '', concat('<p><b>THRESHOLD:</b> ', variables('threshold'), '</p>'))}\n<br><p><b>RESOURCE:</b> <a href=\"@{variables('resource-link')}\">@{variables('resource')}</a></p>\n<br><p><b>FIRED TIME:</b> @{variables('fired-time')}</p>\n<p><b>RESOLVED TIME:</b> @{variables('resolved-time')}</p>"
-    }
-}
-
+                    "Set_alert-body-pushover": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-body-pushover",
+                            "value": "DESCRIPTION: @{variables('alert-description')}\nALERT CONDITION: @{variables('alert-condition')}\nSEVERITY: @{variables('alert-severity')}\n\n@{if(or(equals(variables('service-name'), 'null'), equals(variables('service-name'), '')), '', concat('SERVICE NAME: ', take(variables('service-name'), 100), '\n'))}ALERT TYPE: @{variables('alert-type')}\n@{if(or(equals(variables('query-result-count'), 'null'), equals(variables('query-result-count'), '')), '', concat('QUERY RESULT COUNT: ', variables('query-result-count'), '\n'))}@{if(or(equals(variables('shortened-url'), 'null'), equals(variables('shortened-url'), '')), '', concat('LOG LINK: ', variables('shortened-url'), '\n'))}@{if(equals(variables('alert-metric'), 'null'), '', concat('METRIC: ', variables('alert-metric'), '\n'))}@{if(equals(variables('current-value'), 'null'), '', concat('CURRENT VALUE: ', variables('current-value'), '\n'))}@{if(equals(variables('operator'), 'null'), '', concat('OPERATOR: ', variables('operator'), '\n'))}@{if(equals(variables('threshold'), 'null'), '', concat('THRESHOLD: ', variables('threshold'), '\n'))}\n\n@{if(not(equals(variables('alert-type'), 'Log')), concat('RESOURCE(S) INVOLVED: ', variables('resource'), '\nRESOURCE LINK: https://portal.azure.com/#/resource', variables('resource'), '\n\n'), '')}FIRED TIME: @{variables('fired-time')}\nRESOLVED TIME: @{variables('resolved-time')}"
+                        }
+                    },
+                    "Set_alert-body-teams": {
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "alert-body-teams",
+                            "value": "<p><b><span style=\"font-size:20px; color:orange;\">@{variables('alert-name')}</span></b></p>\n<hr>\n<p><b>DESCRIPTION:</b> <i><span style=\"color:yellow; font-style:italic;\">@{variables('alert-description')}</span></i></p>\n<p><p><b>ALERT CONDITION: <span style=\"color:@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), 'red', 'green')}\">@{if(equals(triggerBody()['data']['essentials']['monitorCondition'], 'Fired'), '🚨 FIRED 🚨', '✅ RESOLVED ✅')}</span></b></p>\n<p><b>SEVERITY:</b> @{variables('alert-severity')}</p>\n<br>@{if(or(equals(variables('service-name'), 'null'), equals(variables('service-name'), '')), '', concat('<p><b>SERVICE NAME:</b> ', take(variables('service-name'), 100), '</p>'))}\n<p><b>ALERT TYPE:</b> @{variables('alert-type')}</p>\n@{if(or(equals(variables('query-result-count'), 'null'), equals(variables('query-result-count'), '')), '', concat('<p><b>QUERY RESULT COUNT:</b> ', variables('query-result-count'), '</p>'))}@{if(or(equals(variables('link-to-filtered-search-results-ui'), 'null'), equals(variables('link-to-filtered-search-results-ui'), '')), '', concat('<p><b>LOG LINK:</b> <a href=\"', variables('link-to-filtered-search-results-ui'), '\">View Logs</a></p>'))}\n@{if(equals(variables('alert-metric'), 'null'), '', concat('<p><b>METRIC:</b> ', variables('alert-metric'), '</p>'))}\n@{if(equals(variables('current-value'), 'null'), '', concat('<p><b>CURRENT VALUE:</b> ', variables('current-value'), '</p>'))}@{if(equals(variables('operator'), 'null'), '', concat('<p><b>OPERATOR:</b> ', variables('operator'), '</p>'))}@{if(equals(variables('threshold'), 'null'), '', concat('<p><b>THRESHOLD:</b> ', variables('threshold'), '</p>'))}\n@{if(not(equals(variables('alert-type'), 'Log')), concat('<br><p><b>RESOURCE:</b> <a href=\"', variables('resource-link'), '\">', variables('resource'), '</a></p>'), '')}\n<br><p><b>FIRED TIME:</b> @{variables('fired-time')}</p>\n<p><b>RESOLVED TIME:</b> @{variables('resolved-time')}</p>"
+                        }
+                    }
                 },
                 "runAfter": {
-                    "Run_in_Parallel_Set_Variables": [
-                        "Succeeded"
+                    "Set_shortened-url": [
+                        "Succeeded",
+                        "Skipped"
+                    ],
+                    "TinyURL_Shortener": [
+                        "Succeeded",
+                        "Failed"
+                    ]
+                },
+                "type": "Scope"
+            },
+            "Run_in_Parallel_Set_Notification_Variables": {
+                "actions": {
+                    "Set_pushover-token": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "pushover-token",
+                        "value": "@{if(contains(toLower(triggerBody()?['data']?['essentials']?['targetResourceGroup']), 'targetString'), variables('pushover-token-e'), variables('pushover-token-default'))}"
+                        }
+                    },
+                    "Set_pushover-user-group": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "pushover-user-group",
+                        "value": "@{if(contains(toLower(triggerBody()?['data']?['essentials']?['targetResourceGroup']), 'targetString'), variables('pushover-user-group-e'), variables('pushover-user-group-default'))}"
+                        }
+                    },                    
+                    "Set_teams-channel-id": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "teams-channel-id",
+                        "value": "@{if(contains(toLower(triggerBody()?['data']?['essentials']?['targetResourceGroup']), 'targetString'), variables('teams-channel-id-e'), variables('teams-channel-id-default'))}"
+                        }                    
+                    },
+                    "Set_teams-group-id": {
+                    "type": "SetVariable",
+                    "inputs": {
+                        "name": "teams-group-id",
+                        "value": "@{if(contains(toLower(triggerBody()?['data']?['essentials']?['targetResourceGroup']), 'targetString'), variables('teams-group-id-e'), variables('teams-group-id-default'))}"
+                        }
+                    }
+                },                
+                "runAfter": {
+                    "Run_in_Parallel_Set_Bodies": [
+                        "Succeeded",
+                        "Skipped"
+                    ],
+                    "Handle_Run_in_Parallel_Set_Variables_Failure": [
+                        "Succeeded",
+                        "Skipped"
                     ]
                 },
                 "type": "Scope"
@@ -351,8 +552,8 @@
                             "method": "post",
                             "body": {
                                 "recipient": {
-                                    "groupId": "11111111-1111-1111-1111-1111111111",
-                                    "channelId": "19:11111111111111111111111111111@thread.tacv2"
+                                    "groupId": "@{variables('teams-group-id')}",
+                                    "channelId": "@{variables('teams-channel-id')}"
                                 },
                                 "messageBody": "<p>@{variables('alert-body-teams')}</p><br>"
                             },
@@ -368,13 +569,8 @@
                                 "Content-Type": "application/json"
                             },
                             "body": {
-                                "token": "{{TOKEN}}",
-                                "user": "{{USER}}",
-                                "device": [
-                                    "firefox_dba",
-                                    "Firefox_CMA",
-                                    "Edge_CMA"
-                                ],
+                                "token": "@{variables('pushover-token')}",
+                                "user": "@{variables('pushover-user-group')}",
                                 "priority": 1,
                                 "title": "@{variables('alert-name')}",
                                 "message": "@{variables('alert-body-pushover')}",
@@ -385,13 +581,8 @@
                     }
                 },
                 "runAfter": {
-                    "Run_in_Parallel_Set_Bodies": [
-                        "Succeeded",
-                        "Skipped"
-                    ],
-                    "Handle_Run_in_Parallel_Set_Variables_Failure": [
-                        "Succeeded",
-                        "Skipped"
+                    "Run_in_Parallel_Set_Notification_Variables": [
+                        "Succeeded"
                     ]
                 },
                 "type": "Scope"
@@ -410,8 +601,8 @@
             "type": "Object",
             "value": {
                 "teams-1": {
-                    "id": "/subscriptions/11111111-1111-1111-1111-1111111111/providers/Microsoft.Web/locations/westeurope/managedApis/teams",
-                    "connectionId": "/subscriptions/11111111-1111-1111-1111-1111111111/resourceGroups/rsg/providers/Microsoft.Web/connections/teams",
+                    "id": "/subscriptions/{SUBSCRIPTION_ID}/providers/Microsoft.Web/locations/westeurope/managedApis/teams",
+                    "connectionId": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/rsg/providers/Microsoft.Web/connections/teams",
                     "connectionName": "teams"
                 }
             }
